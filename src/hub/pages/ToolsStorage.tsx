@@ -29,14 +29,27 @@ export function ToolsStorage() {
     if (!confirm("ต้องการลบการเชื่อมต่อนี้หรือไม่?")) return;
     try { await ApiClient.request("tools-storage-service/delete", { method: "POST", body: JSON.stringify({ type, id }) }); await loadData(); } catch (e: any) { setError(e.message); }
   };
-  const test = async (type: "tool" | "storage", id: string) => {
+    const test = async (type: "tool" | "storage", id: string) => {
     setTesting(id);
     try {
-      const res = await ApiClient.request("tools-storage-service/test", { method: "POST", body: JSON.stringify({ type, id }) });
-      res.success ? toast.success(`เชื่อมต่อสำเร็จ${res.latency ? ` · ${res.latency}ms` : ""}`) : toast.error("เชื่อมต่อล้มเหลว");
+      const res = await ApiClient.request("tools-storage-service/test", {
+        method: "POST",
+        body: JSON.stringify({ type, id }),
+      });
+      if (res.success) {
+        toast.success(`เชื่อมต่อสำเร็จ${res.latency ? ` · ${res.latency}ms` : ""}`);
+      } else {
+        toast.error(res.message || res.error || "เชื่อมต่อล้มเหลว");
+      }
       await loadData();
-    } catch (e: any) { setError(e.message); } finally { setTesting(""); }
+    } catch (e: any) {
+      setError(e.message);
+      toast.error(e.message || "เกิดข้อผิดพลาดในการทดสอบ");
+    } finally {
+      setTesting("");
+    }
   };
+
 
   const row = (x: any, type: "tool" | "storage", url: string) => (
     <div key={x.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3 text-xs">
