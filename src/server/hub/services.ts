@@ -1,6 +1,7 @@
 // AI Hub HTTP services (ported 1:1 from supabase/functions/*-service).
 import { json, getServiceClient, validateSession, hashPasscode, hashString, encryptSecret, decryptSecret, logActivity, nextCronRun } from "./core";
 import { testProviderConnection } from "./router-core";
+import { runWorkerTick } from "./jobs";
 
 type Ctx = { req: Request; action: string; body: any; url: URL; supabase: any };
 type Handler = (ctx: Ctx) => Promise<Response>;
@@ -191,6 +192,10 @@ const tasksService: Handler = async ({ req, action, body, url, supabase }) => {
     }
     await logActivity(supabase, { taskId: task.id, eventType: "TASK_QUEUED", description: `สร้างงานใหม่: ${command.slice(0, 50)}...`, details: { idempotency: iKey } });
     return json({ success: true, task });
+  }
+  if (action === "tick" && req.method === "POST") {
+    // Advance the queue immediately (in addition to the background schedule).
+    return json(await runWorkerTick());
   }
   if (action === "detail") {
     const taskId = url.searchParams.get("id");
