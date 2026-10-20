@@ -10,33 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicHubSplatRouteImport } from './routes/api/public/hub/$'
+import { Route as ApiPublicJobsTickRouteImport } from './routes/api/public/jobs/tick'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHubSplatRoute = ApiPublicHubSplatRouteImport.update({
+  id: '/api/public/hub/$',
+  path: '/api/public/hub/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicJobsTickRoute = ApiPublicJobsTickRouteImport.update({
+  id: '/api/public/jobs/tick',
+  path: '/api/public/jobs/tick',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/public/hub/$': typeof ApiPublicHubSplatRoute
+  '/api/public/jobs/tick': typeof ApiPublicJobsTickRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/public/hub/$': typeof ApiPublicHubSplatRoute
+  '/api/public/jobs/tick': typeof ApiPublicJobsTickRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/public/hub/$': typeof ApiPublicHubSplatRoute
+  '/api/public/jobs/tick': typeof ApiPublicJobsTickRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/api/public/hub/$' | '/api/public/jobs/tick'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/api/public/hub/$' | '/api/public/jobs/tick'
+  id: '__root__' | '/' | '/api/public/hub/$' | '/api/public/jobs/tick'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiPublicHubSplatRoute: typeof ApiPublicHubSplatRoute
+  ApiPublicJobsTickRoute: typeof ApiPublicJobsTickRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +68,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hub/$': {
+      id: '/api/public/hub/$'
+      path: '/api/public/hub/$'
+      fullPath: '/api/public/hub/$'
+      preLoaderRoute: typeof ApiPublicHubSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/jobs/tick': {
+      id: '/api/public/jobs/tick'
+      path: '/api/public/jobs/tick'
+      fullPath: '/api/public/jobs/tick'
+      preLoaderRoute: typeof ApiPublicJobsTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiPublicHubSplatRoute: ApiPublicHubSplatRoute,
+  ApiPublicJobsTickRoute: ApiPublicJobsTickRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
