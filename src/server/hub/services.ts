@@ -398,7 +398,72 @@ const toolsStorageService: Handler = async ({ req, action, body, supabase }) => 
       await supabase.from("tools").update({ last_test_result: success ? "SUCCESS" : "FAILED", last_test_latency_ms: latency, last_tested_at: new Date().toISOString() }).eq("id", id);
       return json({ success, latency });
     }
-    if (type === "storage") {
+        if (type === "storage") {
+      const { data: st } = await supabase
+        .from("storage_connections")
+        .select("*, storage_secrets(service_role_key, encrypted_secret, encryption_iv)")
+        .eq("id", id)
+        .single();
+
+      if (!st) return json({ error: "Storage connection not found" }, 404);
+
+      const sec = one(st.storage_secrets);
+      let key = "";
+      try {
+        key = await decryptSecret(sec?.encrypted_secret || null, sec?.encryption_iv || null, sec?.service_role_key || null);
+      } catch (err: any) {
+        return json({ success: false, error: "ไม่สามารถถอดรหัสคีย์ได้ (ตรวจสอบการตั้งค่า Secret Encryption)" }, 400);
+      }
+
+      if (!key) {
+        return json({ success: false, error: "ไม่พบคีย์ Service Role / Secret Key" }, 400);
+      }
+
+      const cleanUrl = String(st.project_url || "").trim().replace(/\/+$/, "");
+      const start = Date.now();
+      let success = false;
+      let statusText = "";
+
+      try {
+        // รองรับทั้ง Legacy JWT service_role และ Supabase Secret API Key รูปแบบใหม่ (sb_secret_...)
+        const headers: Record<string, string> = { apikey: key };
+        if (!key.startsWith("sb_secret_")) {
+          headers["Authorization"] = `Bearer ${key}`;
+        }
+
+        const res = await fetch(`${cleanUrl}/rest/v1/`, {
+          method: "GET",
+          headers,
+          signal: AbortSignal.timeout(6000),
+        });
+
+        if (res.ok) {
+          success = true;
+          statusText = "เชื่อมต่อสำเร็จ";
+        } else {
+          success = false;
+          if (res.status === 401 || res.status === 403) {
+            statusText = "API Key / Service Role Key ไม่ถูกต้องหรือไม่มีสิทธิ์";
+          } else if (res.status === 404) {
+            statusText = "ไม่พบ REST API ปลายทาง ตรวจสอบ Project URL";
+          } else {
+            statusText = `เซิร์ฟเวอร์ปลายทางตอบกลับข้อผิดพลาด (HTTP ${res.status})`;
+          }
+        }
+      } catch (err: any) {
+        success = false;
+        statusText = err?.name === "TimeoutError" ? "หมดเวลาเชื่อมต่อ (Timeout 6s)" : "ไม่สามารถเข้าถึงเครือข่ายปลายทางได้";
+      }
+
+      const latency = Date.now() - start;
+      await supabase.from("storage_connections").update({
+        last_test_result: success ? "SUCCESS" : "FAILED",
+        last_tested_at: new Date().toISOString(),
+      }).eq("id", id);
+
+      return json({ success, latency, message: statusText });
+    }
+
       const { data: st } = await supabase.from("storage_connections").select("*, storage_secrets(service_role_key,encrypted_secret,encryption_iv)").eq("id", id).single();
       if (!st) return json({ error: "Storage connection not found" }, 404);
       const sec = one(st.storage_secrets);
