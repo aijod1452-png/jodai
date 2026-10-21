@@ -12,7 +12,7 @@ export function ToolsStorage() {
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [toolForm, setToolForm] = useState({ name: "", description: "", baseUrl: "https://", apiKey: "", authHeaderType: "Bearer", customHeaderName: "" });
-  const [storageForm, setStorageForm] = useState({ name: "", projectUrl: "https://", serviceRoleKey: "" });
+  const [storageForm, setStorageForm] = useState({ name: "", projectUrl: "", serviceRoleKey: "" });
   const [testing, setTesting] = useState("");
 
   const loadData = async () => { const res = await ApiClient.request("tools-storage-service/list"); setItems({ tools: res.tools || [], storages: res.storages || [] }); };

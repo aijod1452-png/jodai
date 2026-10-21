@@ -15,6 +15,34 @@ describe("Storage compatibility", () => {
     expect(normalizeStorageKey(" \n sb_secret_testfixture \t ")).toBe("sb_secret_testfixture");
     expect(() => normalizeStorageKey(" \n ")).toThrow();
   });
+  it("removes repeated leading HTTPS schemes before normalizing the origin", () => {
+    expect(normalizeProjectUrl(" https://https://example.test/rest/v1/?q=1#x ")).toBe("https://example.test");
+    expect(normalizeProjectUrl("HTTPS:// https://https://example.test/storage/v1")).toBe("https://example.test");
+    expect(() => normalizeProjectUrl("https://http://example.test")).toThrow();
+  });
+  it("converts an official project Dashboard URL to the API origin", () => {
+    expect(normalizeProjectUrl("https://supabase.com/dashboard/project/abcdefghijklmnopqrst/storage/buckets?q=1#x")).toBe("https://abcdefghijklmnopqrst.supabase.co");
+    expect(normalizeProjectUrl(" https://https://supabase.com/dashboard/project/abcdefghijklmnopqrst ")).toBe("https://abcdefghijklmnopqrst.supabase.co");
+  });
+  it("supports legacy project Dashboard URLs", () => {
+    expect(normalizeProjectUrl("https://app.supabase.com/project/abcdefghijklmnopqrst/settings/api")).toBe("https://abcdefghijklmnopqrst.supabase.co");
+  });
+  it("rejects Dashboard URLs without a valid project hostname", () => {
+    for (const url of [
+      "https://supabase.com/dashboard/project/",
+      "https://supabase.com/dashboard/org/example",
+      "https://supabase.com/dashboard/project/-invalid",
+      "https://supabase.com/dashboard/project/project.example",
+      "https://supabase.com/dashboard/project/abc%2Fdef",
+    ]) expect(() => normalizeProjectUrl(url)).toThrow();
+  });
+  it("rejects malformed or incomplete hostnames", () => {
+    for (const url of ["https://", "https://https://", "https://localhost", "https://-bad.example", "https://bad-.example", "https://bad_name.example", "https://bad..example", `https://${"a".repeat(64)}.example`]) {
+      expect(() => normalizeProjectUrl(url)).toThrow();
+    }
+    expect(normalizeProjectUrl("https://storage.custom-domain.test:8443/rest/v1/")).toBe("https://storage.custom-domain.test:8443");
+    expect(normalizeProjectUrl("https://supabase.com.example.test/dashboard/project/abc")).toBe("https://supabase.com.example.test");
+  });
   it("sends opaque secret keys only in apikey", () => {
     const headers = storageHeaders(" sb_secret_testfixture ");
     expect(headers.get("apikey")).toBe("sb_secret_testfixture");

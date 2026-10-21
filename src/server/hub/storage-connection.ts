@@ -1,10 +1,28 @@
 import { z } from "zod";
 
 export function normalizeProjectUrl(value: unknown): string {
-  const input = z.string().trim().min(1).max(2048).parse(value);
-  const url = new URL(input);
+  const input = z.string().trim().min(1).max(2048).parse(value)
+    .replace(/^(?:https:\/\/\s*)+/i, "https://");
+  let url: URL;
+  try {
+    url = new URL(input);
+  } catch {
+    throw new Error("Project URL ไม่ถูกต้อง กรุณาตรวจสอบ URL และชื่อโฮสต์");
+  }
   if (url.protocol !== "https:" || url.username || url.password) {
     throw new Error("Project URL ต้องเป็น HTTPS และไม่มีชื่อผู้ใช้หรือรหัสผ่านใน URL");
+  }
+  const validLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
+  const labels = url.hostname.split(".");
+  if (url.hostname.length > 253 || labels.length < 2 || labels.some(label => !validLabel.test(label))) {
+    throw new Error("Project URL มีชื่อโฮสต์ไม่ถูกต้อง");
+  }
+  if (["supabase.com", "www.supabase.com", "app.supabase.com"].includes(url.hostname)) {
+    const project = url.pathname.match(/^\/(?:dashboard\/)?project\/([^/]+)(?:\/|$)/)?.[1];
+    if (!project || !validLabel.test(project) || url.port) {
+      throw new Error("กรุณาใช้ Dashboard URL ของโปรเจกต์ หรือ Project API URL");
+    }
+    return `https://${project.toLowerCase()}.supabase.co`;
   }
   return url.origin;
 }
