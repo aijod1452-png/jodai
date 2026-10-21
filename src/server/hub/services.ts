@@ -463,19 +463,6 @@ const toolsStorageService: Handler = async ({ req, action, body, supabase }) => 
 
       return json({ success, latency, message: statusText });
     }
-
-      const { data: st } = await supabase.from("storage_connections").select("*, storage_secrets(service_role_key,encrypted_secret,encryption_iv)").eq("id", id).single();
-      if (!st) return json({ error: "Storage connection not found" }, 404);
-      const sec = one(st.storage_secrets);
-      const key = await decryptSecret(sec?.encrypted_secret || null, sec?.encryption_iv || null, sec?.service_role_key || null);
-      let success = false;
-      try {
-        const res = await fetch(`${st.project_url}/rest/v1/`, { headers: { apikey: key, Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(5000) });
-        success = res.ok;
-      } catch { success = false; }
-      await supabase.from("storage_connections").update({ last_test_result: success ? "SUCCESS" : "FAILED", last_tested_at: new Date().toISOString() }).eq("id", id);
-      return json({ success });
-    }
     return json({ error: "type must be tool or storage" }, 400);
   }
   if (action === "safety-snapshot") {
