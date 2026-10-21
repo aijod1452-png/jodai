@@ -17,8 +17,7 @@ export async function getServiceClient(): Promise<any> {
 }
 
 export function maskSecret(key: string): string {
-  if (!key || key.length <= 4) return "••••";
-  return "••••" + key.slice(-4);
+  return key ? "ตั้งค่าคีย์แล้ว" : "ยังไม่ตั้งค่าคีย์";
 }
 
 export function sanitizeDetails(obj: any): any {
@@ -85,9 +84,13 @@ export async function validateSession(req: Request): Promise<{ valid: boolean; e
 // ---------- AES-GCM secret encryption ----------
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-async function key() {
-  const configured = process.env["AIH_SECRET_ENCRYPTION_KEY"];
-  if (!configured) throw new Error("Missing AIH_SECRET_ENCRYPTION_KEY project secret");
+function encryptionSources(): string[] {
+  const sources = [process.env["AIH_SECRET_ENCRYPTION_KEY"], process.env["SUPABASE_SERVICE_ROLE_KEY"]]
+    .filter((value): value is string => !!value);
+  if (!sources.length) throw new Error("Missing secret encryption configuration");
+  return [...new Set(sources)];
+}
+async function key(configured: string) {
   // Derive a 32-byte key from the configured secret.
   const raw = await crypto.subtle.digest("SHA-256", encoder.encode(configured));
   return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
@@ -96,16 +99,24 @@ const b64 = (u: Uint8Array) => btoa(String.fromCharCode(...u));
 const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 export async function encryptSecret(value: string): Promise<{ encrypted_secret: string; encryption_iv: string }> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await key(), encoder.encode(value));
+  const source = encryptionSources()[0];
+  if (!source) throw new Error("Missing secret encryption configuration");
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await key(source), encoder.encode(value));
   return { encrypted_secret: b64(new Uint8Array(encrypted)), encryption_iv: b64(iv) };
 }
 export async function decryptSecret(encrypted: string | null, iv: string | null, legacy?: string | null): Promise<string> {
-  if (!encrypted || !iv) return legacy || "";
-  try {
-    return decoder.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(iv) }, await key(), unb64(encrypted)));
-  } catch {
-    throw new Error("Stored secret could not be decrypted; verify encryption-key configuration");
+  if (!encrypted && !iv) return legacy || "";
+  if (encrypted && iv) {
+    for (const source of encryptionSources()) {
+      try {
+        return decoder.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(iv) }, await key(source), unb64(encrypted)));
+      } catch {
+        // Older records may have used the service key. Never return ciphertext or
+        // silently downgrade to legacy plaintext when an encrypted record fails.
+      }
+    }
   }
+  throw new Error("Stored secret could not be decrypted; restore the original encryption configuration or re-enter the connection key");
 }
 
 // ---------- Cron ----------
