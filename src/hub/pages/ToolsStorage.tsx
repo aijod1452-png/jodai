@@ -37,10 +37,11 @@ export function ToolsStorage() {
         body: JSON.stringify({ type, id }),
       });
       if (res.success) {
-        toast.success(`เชื่อมต่อสำเร็จ${res.latency ? ` · ${res.latency}ms` : ""}`);
+        toast.success(`${res.message || "เชื่อมต่อสำเร็จ"}${res.latency ? ` · ${res.latency}ms` : ""}`);
       } else {
         toast.error(res.message || res.error || "เชื่อมต่อล้มเหลว");
       }
+      if (res.warning) toast.warning(res.warning);
       await loadData();
     } catch (e: any) {
       setError(e.message);
