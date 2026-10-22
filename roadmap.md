@@ -1,7 +1,5 @@
-# Storage connection repair
-- [x] Normalize repeated HTTPS schemes and official Dashboard project URLs; validate hostnames.
-- [x] Start the Storage URL field empty; all 16 URL and routing regression tests pass, build OK.
-- [x] Support compatible secret decryption and safe credential display.
-- [x] Normalize Storage inputs and test authenticated endpoints with clear results.
-- [x] Pass 11 regression tests; verify live status endpoint, PIN screen and rejection of unauthenticated Storage tests.
-- [ ] Verify an existing Storage connection through the unlocked UI — blocked by unavailable PIN session; no authentication bypass or PIN reset performed.
+# Tools + Storage
+- [x] Storage URL/key normalization, compatible decryption, authenticated probes (16 tests).
+- [x] Tool URL/header/sample validation, private-address block, 2xx-only success, masked keys.
+- [x] Edit, enable/disable, delete logging, test latency/messages for tools and storage.
+- [ ] Verify real connections through the unlocked UI — needs the user's PIN.
