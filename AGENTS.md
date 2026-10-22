@@ -11,3 +11,4 @@
 
 - Keep external Storage URL/key normalization, authenticated probes and safe diagnostic results in the server-only storage-connection module so save and test paths use consistent rules.
 - Encrypt new connection secrets with the preferred configured source; decrypt with both current and historical sources without downgrading corrupted encrypted records to plaintext, preserving compatibility without exposing credentials.
+- Keep tool endpoint URL/header/sample validation, private-address blocking and safe probes in the server-only tool-connection module so save and test share one rule set.
