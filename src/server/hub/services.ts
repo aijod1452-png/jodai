@@ -3,6 +3,7 @@ import { json, getServiceClient, validateSession, hashPasscode, hashString, encr
 import { testProviderConnection } from "./router-core";
 import { runWorkerTick } from "./jobs";
 import { normalizeProjectUrl, normalizeStorageKey, testStorageConnection, type StorageTestResult } from "./storage-connection";
+import { normalizeToolUrl, normalizeHeaderName, normalizeAuthType, parseSampleRequest, testToolConnection, type ToolTestResult } from "./tool-connection";
 
 type Ctx = { req: Request; action: string; body: any; url: URL; supabase: any };
 type Handler = (ctx: Ctx) => Promise<Response>;
@@ -339,24 +340,47 @@ const aiService: Handler = async ({ req, action, body, supabase }) => {
 };
 
 // ---------------- tools-storage-service ----------------
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const toolsStorageService: Handler = async ({ req, action, body, supabase }) => {
   const one = (x: any) => (Array.isArray(x) ? x[0] : x);
+  const KEY_SET = "ตั้งค่าคีย์แล้ว";
+  const tableOf = (type: unknown) => (type === "tool" ? "tools" : type === "storage" ? "storage_connections" : null);
   if (action === "list") {
-    const { data: tools } = await supabase.from("tools").select("*, tool_secrets(masked_key)").order("created_at");
-    const { data: storages } = await supabase.from("storage_connections").select("*, storage_secrets(masked_key)").order("created_at");
+    const { data: tools, error: e1 } = await supabase.from("tools").select("*, tool_secrets(masked_key)").order("created_at");
+    if (e1) throw e1;
+    const { data: storages, error: e2 } = await supabase.from("storage_connections").select("*, storage_secrets(masked_key)").order("created_at");
+    if (e2) throw e2;
     return json({
-      tools: (tools || []).map(({ tool_secrets, ...t }: any) => ({ ...t, maskedKey: one(tool_secrets) ? "ตั้งค่าคีย์แล้ว" : "ยังไม่ตั้งค่าคีย์" })),
-      storages: (storages || []).map(({ storage_secrets, ...s }: any) => ({ ...s, maskedKey: one(storage_secrets) ? "ตั้งค่าคีย์แล้ว" : "ยังไม่ตั้งค่าคีย์" })),
+      tools: (tools || []).map(({ tool_secrets, ...t }: any) => ({ ...t, maskedKey: one(tool_secrets) ? KEY_SET : "ยังไม่ตั้งค่าคีย์" })),
+      storages: (storages || []).map(({ storage_secrets, ...s }: any) => ({ ...s, maskedKey: one(storage_secrets) ? KEY_SET : "ยังไม่ตั้งค่าคีย์" })),
     });
   }
   if (action === "save-tool" && req.method === "POST") {
     const { id, name, description, baseUrl, apiKey, authHeaderType, customHeaderName, sampleRequest, isEnabled } = body;
-    if (!name?.trim() || !baseUrl || !/^https:\/\//i.test(baseUrl)) return json({ error: "name and HTTPS baseUrl are required" }, 400);
-    const record = { name: String(name).trim().slice(0, 100), description: String(description || "").slice(0, 1000), base_url: baseUrl, auth_header_type: authHeaderType || "Bearer", custom_header_name: customHeaderName || null, sample_request: sampleRequest || null, is_enabled: isEnabled !== false, updated_at: new Date().toISOString() };
+    let record: any;
+    let cleanKey = "";
+    try {
+      if (id !== undefined && id !== null && (typeof id !== "string" || !UUID_RE.test(id))) throw new Error("รหัสเครื่องมือไม่ถูกต้อง");
+      if (typeof name !== "string" || !name.trim()) throw new Error("กรุณากรอกชื่อเครื่องมือ");
+      if (description !== undefined && description !== null && typeof description !== "string") throw new Error("คำอธิบายไม่ถูกต้อง");
+      if (apiKey !== undefined && apiKey !== null && apiKey !== "") {
+        if (typeof apiKey !== "string" || apiKey.trim().length > 8192 || /[\r\n]/.test(apiKey.trim())) throw new Error("API key ไม่ถูกต้อง");
+        cleanKey = apiKey.trim();
+      }
+      const authType = normalizeAuthType(authHeaderType);
+      const headerName = customHeaderName ? normalizeHeaderName(customHeaderName) : null;
+      record = { name: name.trim().slice(0, 100), description: String(description || "").slice(0, 1000), base_url: normalizeToolUrl(baseUrl), auth_header_type: authType, custom_header_name: headerName, sample_request: parseSampleRequest(sampleRequest), is_enabled: isEnabled !== false, updated_at: new Date().toISOString() };
+    } catch (e) {
+      return json({ error: e instanceof Error && !e.message.startsWith("[") ? e.message : "ข้อมูลเครื่องมือไม่ถูกต้อง" }, 400);
+    }
+    const encrypted = cleanKey ? await encryptSecret(cleanKey) : null;
     let toolId = id;
-    if (id) { const { error } = await supabase.from("tools").update(record).eq("id", id); if (error) throw error; }
-    else { const { data, error } = await supabase.from("tools").insert(record).select("id").single(); if (error) throw error; toolId = data.id; }
-    if (apiKey) { const enc = await encryptSecret(apiKey); const { error } = await supabase.from("tool_secrets").upsert({ tool_id: toolId, ...enc, api_key: null, masked_key: `••••${apiKey.slice(-4)}` }); if (error) throw error; }
+    if (id) {
+      const { data, error } = await supabase.from("tools").update(record).eq("id", id).select("id");
+      if (error) throw error;
+      if (!data?.length) return json({ error: "ไม่พบเครื่องมือ" }, 404);
+    } else { const { data, error } = await supabase.from("tools").insert(record).select("id").single(); if (error) throw error; toolId = data.id; }
+    if (encrypted) { const { error } = await supabase.from("tool_secrets").upsert({ tool_id: toolId, ...encrypted, api_key: null, masked_key: KEY_SET }); if (error) throw error; }
     await logActivity(supabase, { toolId, eventType: "TOOL_SAVED", description: `บันทึกเครื่องมือ: ${record.name}` });
     return json({ success: true, id: toolId });
   }
@@ -365,6 +389,7 @@ const toolsStorageService: Handler = async ({ req, action, body, supabase }) => 
     let cleanUrl: string;
     let cleanKey = "";
     try {
+      if (id !== undefined && id !== null && (typeof id !== "string" || !UUID_RE.test(id))) throw new Error();
       cleanUrl = normalizeProjectUrl(projectUrl);
       if (typeof name !== "string" || !name.trim()) throw new Error();
       if (serviceRoleKey !== undefined && serviceRoleKey !== "") cleanKey = normalizeStorageKey(serviceRoleKey);
@@ -372,82 +397,84 @@ const toolsStorageService: Handler = async ({ req, action, body, supabase }) => 
     } catch {
       return json({ error: "กรอกชื่อ, HTTPS Project URL และคีย์สำหรับการเชื่อมต่อใหม่ให้ครบ" }, 400);
     }
-    // Encrypt before inserting the connection so configuration errors cannot
-    // leave a newly-created connection without its supplied credential.
+    // Encrypt before inserting so configuration errors cannot leave a connection without its credential.
     const encrypted = cleanKey ? await encryptSecret(cleanKey) : null;
     const record = { name: name.trim().slice(0, 100), project_url: cleanUrl, is_enabled: isEnabled !== false, updated_at: new Date().toISOString() };
     let storageId = id;
-    if (id) { const { error } = await supabase.from("storage_connections").update(record).eq("id", id); if (error) throw error; }
-    else { const { data, error } = await supabase.from("storage_connections").insert(record).select("id").single(); if (error) throw error; storageId = data.id; }
-    if (encrypted) { const { error } = await supabase.from("storage_secrets").upsert({ storage_id: storageId, ...encrypted, service_role_key: null, masked_key: "ตั้งค่าคีย์แล้ว" }); if (error) throw error; }
+    if (id) {
+      const { data, error } = await supabase.from("storage_connections").update(record).eq("id", id).select("id");
+      if (error) throw error;
+      if (!data?.length) return json({ error: "ไม่พบการเชื่อมต่อ Storage" }, 404);
+    } else { const { data, error } = await supabase.from("storage_connections").insert(record).select("id").single(); if (error) throw error; storageId = data.id; }
+    if (encrypted) { const { error } = await supabase.from("storage_secrets").upsert({ storage_id: storageId, ...encrypted, service_role_key: null, masked_key: KEY_SET }); if (error) throw error; }
     await logActivity(supabase, { eventType: "STORAGE_SAVED", description: `บันทึก Storage: ${record.name}` });
     return json({ success: true, id: storageId });
   }
   if (action === "delete" && req.method === "POST") {
     const { type, id } = body;
-    const table = type === "tool" ? "tools" : type === "storage" ? "storage_connections" : null;
-    if (!table || !id) return json({ error: "type and id required" }, 400);
-    const { error } = await supabase.from(table).delete().eq("id", id);
+    const table = tableOf(type);
+    if (!table || typeof id !== "string" || !UUID_RE.test(id)) return json({ error: "type and valid id required" }, 400);
+    const { data, error } = await supabase.from(table).delete().eq("id", id).select("id, name");
     if (error) throw error;
+    if (!data?.length) return json({ error: "ไม่พบรายการ" }, 404);
+    await logActivity(supabase, { eventType: type === "tool" ? "TOOL_DELETED" : "STORAGE_DELETED", description: `ลบ${type === "tool" ? "เครื่องมือ" : " Storage"}: ${data[0].name}` });
     return json({ success: true });
   }
-  if (action === "test") {
+  if (action === "toggle" && req.method === "POST") {
+    const { type, id, isEnabled } = body;
+    const table = tableOf(type);
+    if (!table || typeof id !== "string" || !UUID_RE.test(id) || typeof isEnabled !== "boolean") return json({ error: "type, valid id and isEnabled required" }, 400);
+    const { data, error } = await supabase.from(table).update({ is_enabled: isEnabled, updated_at: new Date().toISOString() }).eq("id", id).select("id, name");
+    if (error) throw error;
+    if (!data?.length) return json({ error: "ไม่พบรายการ" }, 404);
+    await logActivity(supabase, { eventType: "CONNECTION_TOGGLED", description: `${isEnabled ? "เปิด" : "ปิด"}การใช้งาน: ${data[0].name}` });
+    return json({ success: true });
+  }
+  if (action === "test" && req.method === "POST") {
     const { type, id } = body;
+    if (typeof id !== "string" || !UUID_RE.test(id)) return json({ error: "valid id required" }, 400);
     if (type === "tool") {
-      const { data: tool } = await supabase.from("tools").select("*, tool_secrets(api_key,encrypted_secret,encryption_iv)").eq("id", id).single();
-      if (!tool) return json({ error: "Tool not found" }, 404);
+      const { data: tool } = await supabase.from("tools").select("*, tool_secrets(api_key,encrypted_secret,encryption_iv)").eq("id", id).maybeSingle();
+      if (!tool) return json({ error: "ไม่พบเครื่องมือ" }, 404);
+      if (tool.is_enabled === false) return json({ success: false, latency: 0, message: "เครื่องมือนี้ถูกปิดใช้งาน เปิดก่อนทดสอบ" });
       const sec = one(tool.tool_secrets);
-      const apiKey = await decryptSecret(sec?.encrypted_secret || null, sec?.encryption_iv || null, sec?.api_key || null);
-      const start = Date.now();
-      let success = false;
+      let result: ToolTestResult;
       try {
-        const headers = new Headers();
-        if (apiKey) headers.set(tool.custom_header_name || "Authorization", tool.auth_header_type === "Bearer" ? `Bearer ${apiKey}` : apiKey);
-        if (tool.sample_request) headers.set("Content-Type", "application/json");
-        const res = await fetch(tool.base_url, { headers, method: tool.sample_request ? "POST" : "GET", ...(tool.sample_request ? { body: JSON.stringify(tool.sample_request) } : {}), signal: AbortSignal.timeout(5000) });
-        success = res.ok || res.status === 404;
-      } catch { success = false; }
-      const latency = Date.now() - start;
-      await supabase.from("tools").update({ last_test_result: success ? "SUCCESS" : "FAILED", last_test_latency_ms: latency, last_tested_at: new Date().toISOString() }).eq("id", id);
-      return json({ success, latency });
+        let apiKey: string;
+        try { apiKey = await decryptSecret(sec?.encrypted_secret || null, sec?.encryption_iv || null, sec?.api_key || null); }
+        catch { throw new Error("ถอดรหัสคีย์ไม่ได้: บันทึก API key ของเครื่องมือนี้ใหม่"); }
+        result = await testToolConnection(tool, apiKey);
+      } catch (e) {
+        result = { success: false, latency: 0, status: null, message: e instanceof Error && !e.message.startsWith("[") ? e.message : "การตั้งค่าเครื่องมือไม่ถูกต้อง กรุณาบันทึกใหม่" };
+      }
+      const { error: ue } = await supabase.from("tools").update({ last_test_result: result.success ? "SUCCESS" : "FAILED", last_test_latency_ms: result.latency, last_tested_at: new Date().toISOString() }).eq("id", id);
+      return json(ue ? { ...result, warning: "ไม่สามารถบันทึกผลทดสอบล่าสุดได้" } : result);
     }
     if (type === "storage") {
-      const { data: st } = await supabase
-        .from("storage_connections")
-        .select("*, storage_secrets(service_role_key, encrypted_secret, encryption_iv)")
-        .eq("id", id)
-        .single();
-
-      if (!st) return json({ error: "Storage connection not found" }, 404);
-
+      const { data: st } = await supabase.from("storage_connections").select("*, storage_secrets(service_role_key, encrypted_secret, encryption_iv)").eq("id", id).maybeSingle();
+      if (!st) return json({ error: "ไม่พบการเชื่อมต่อ Storage" }, 404);
+      if (st.is_enabled === false) return json({ success: false, latency: 0, attempts: [], message: "Storage นี้ถูกปิดใช้งาน เปิดก่อนทดสอบ" });
       const sec = one(st.storage_secrets);
       const start = Date.now();
       let result: StorageTestResult;
       try {
         let key: string;
-        try {
-          key = await decryptSecret(sec?.encrypted_secret || null, sec?.encryption_iv || null, sec?.service_role_key || null);
-        } catch {
-          throw new Error("ถอดรหัสคีย์ไม่ได้: ตรวจสอบ Secret Encryption เดิม หรือบันทึกคีย์ของการเชื่อมต่อนี้ใหม่");
-        }
+        try { key = await decryptSecret(sec?.encrypted_secret || null, sec?.encryption_iv || null, sec?.service_role_key || null); }
+        catch { throw new Error("ถอดรหัสคีย์ไม่ได้: ตรวจสอบ Secret Encryption เดิม หรือบันทึกคีย์ของการเชื่อมต่อนี้ใหม่"); }
         if (!key.trim()) throw new Error("ไม่พบคีย์ กรุณาบันทึก Secret API Key หรือ Service Role Key ใหม่");
         result = await testStorageConnection(st.project_url, key);
       } catch (error) {
         result = { success: false, latency: Date.now() - start, attempts: [], message: error instanceof Error && !error.message.startsWith("[") ? error.message : "Project URL หรือรูปแบบคีย์ไม่ถูกต้อง กรุณาบันทึกใหม่" };
       }
-      const { error: updateError } = await supabase.from("storage_connections").update({
-        last_test_result: result.success ? "SUCCESS" : "FAILED",
-        last_tested_at: new Date().toISOString(),
-      }).eq("id", id);
-      if (updateError) return json({ ...result, warning: "ไม่สามารถบันทึกผลทดสอบล่าสุดได้" });
-      return json(result);
+      const { error: ue } = await supabase.from("storage_connections").update({ last_test_result: result.success ? "SUCCESS" : "FAILED", last_test_latency_ms: result.latency, last_tested_at: new Date().toISOString() }).eq("id", id);
+      return json(ue ? { ...result, warning: "ไม่สามารถบันทึกผลทดสอบล่าสุดได้" } : result);
     }
     return json({ error: "type must be tool or storage" }, 400);
   }
   if (action === "safety-snapshot") {
     const { storageId, tableName } = body;
-    await logActivity(supabase, { eventType: "BACKUP_SNAPSHOT", description: `บันทึก Snapshot ความปลอดภัยสำหรับตาราง ${tableName} อัตโนมัติก่อนเริ่มคำสั่งทำลายโครงสร้าง`, details: { storageId, tableName, timestamp: new Date().toISOString() } });
-    return json({ success: true, message: "Snapshot created" });
+    await logActivity(supabase, { eventType: "BACKUP_SNAPSHOT", description: `บันทึกเหตุการณ์ก่อนคำสั่งทำลายโครงสร้างตาราง ${String(tableName || "").slice(0, 100)}`, details: { storageId, tableName, timestamp: new Date().toISOString() } });
+    return json({ success: true, recordedOnly: true, message: "บันทึกเหตุการณ์แล้วเท่านั้น — ไม่ได้สำรองข้อมูลจริง" });
   }
   return json({ error: "Unknown action" }, 404);
 };
