@@ -8,15 +8,10 @@ export const Route = createFileRoute("/api/public/jobs/tick")({
       POST: async ({ request }) => {
         const authFailure = await authenticateCronRequest(request);
         if (authFailure) return authFailure;
-        const { runSchedulerTick, runWorkerTick } = await import("@/server/hub/jobs");
+        const { runSchedulerTick, runWorkerDrain } = await import("@/server/hub/jobs");
         try {
           const scheduler = await runSchedulerTick();
-          const worker: any[] = [];
-          for (let i = 0; i < 3; i++) {
-            const r = await runWorkerTick();
-            worker.push(r);
-            if (r?.message === "No task available" || r?.status === "PAUSED") break;
-          }
+          const worker = await runWorkerDrain({ maxIterations: 10, timeBudgetMs: 40000 });
           return Response.json({ scheduler, worker });
         } catch (err: any) {
           console.error(err);
