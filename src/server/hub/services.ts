@@ -1,7 +1,7 @@
 // AI Hub HTTP services (ported 1:1 from supabase/functions/*-service).
 import { json, getServiceClient, validateSession, hashPasscode, hashString, encryptSecret, decryptSecret, logActivity, nextCronRun } from "./core";
 import { testProviderConnection } from "./router-core";
-import { runWorkerTick } from "./jobs";
+import { runWorkerTick, runWorkerDrain } from "./jobs";
 import { normalizeProjectUrl, normalizeStorageKey, testStorageConnection, type StorageTestResult } from "./storage-connection";
 import { normalizeToolUrl, normalizeHeaderName, normalizeAuthType, parseSampleRequest, testToolConnection, type ToolTestResult } from "./tool-connection";
 
@@ -193,11 +193,14 @@ const tasksService: Handler = async ({ req, action, body, url, supabase }) => {
       throw insertErr;
     }
     await logActivity(supabase, { taskId: task.id, eventType: "TASK_QUEUED", description: `สร้างงานใหม่: ${command.slice(0, 50)}...`, details: { idempotency: iKey } });
-    return json({ success: true, task });
+    // R4: start processing immediately (planning step) instead of waiting for the next tick.
+    let kickoff: any = null;
+    try { kickoff = await runWorkerTick(); } catch (e: any) { kickoff = { error: e.message }; }
+    return json({ success: true, task, kickoff });
   }
   if (action === "tick" && req.method === "POST") {
-    // Advance the queue immediately (in addition to the background schedule).
-    return json(await runWorkerTick());
+    // Drain the queue (bounded) in addition to the background schedule.
+    return json(await runWorkerDrain({ maxIterations: 5, timeBudgetMs: 25000 }));
   }
   if (action === "detail") {
     const taskId = url.searchParams.get("id");
@@ -472,9 +475,15 @@ const toolsStorageService: Handler = async ({ req, action, body, supabase }) => 
     return json({ error: "type must be tool or storage" }, 400);
   }
   if (action === "safety-snapshot") {
-    const { storageId, tableName } = body;
-    await logActivity(supabase, { eventType: "BACKUP_SNAPSHOT", description: `บันทึกเหตุการณ์ก่อนคำสั่งทำลายโครงสร้างตาราง ${String(tableName || "").slice(0, 100)}`, details: { storageId, tableName, timestamp: new Date().toISOString() } });
-    return json({ success: true, recordedOnly: true, message: "บันทึกเหตุการณ์แล้วเท่านั้น — ไม่ได้สำรองข้อมูลจริง" });
+    const { tableName } = body;
+    const { createTableSnapshot } = await import("./storage-connection");
+    try {
+      const snap = await createTableSnapshot(supabase, tableName);
+      await logActivity(supabase, { eventType: "BACKUP_SNAPSHOT", description: `สำรองตาราง ${tableName} แล้ว ${snap.rows} แถว`, details: { tableName, ...snap } });
+      return json({ success: true, ...snap, message: `สำรองข้อมูลจริงแล้ว ${snap.rows} แถว → ${snap.path}` });
+    } catch (e: any) {
+      return json({ success: false, error: e.message }, 400);
+    }
   }
   return json({ error: "Unknown action" }, 404);
 };
