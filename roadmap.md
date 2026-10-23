@@ -3,3 +3,7 @@
 - [x] Tool URL/header/sample validation, private-address block, 2xx-only success, masked keys.
 - [x] Edit, enable/disable, delete logging, test latency/messages for tools and storage.
 - [ ] Verify real connections through the unlocked UI — needs the user's PIN.
+
+# R1–R6 (REQUIREMENTS.md)
+- [x] R1–R6 code + 30 tests passing.
+- [ ] Live check with real tools/models/snapshot — needs the user's PIN session and real provider keys.

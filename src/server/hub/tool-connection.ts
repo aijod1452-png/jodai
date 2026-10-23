@@ -88,3 +88,39 @@ export async function testToolConnection(
     return { success: false, latency: Date.now() - start, status: null, error: timedOut ? "TIMEOUT" : "NETWORK", message: timedOut ? "หมดเวลา 6 วินาที" : "เข้าถึงปลายทางไม่ได้" };
   }
 }
+
+/** Required top-level keys come from the tool's sample_request object (its payload schema). */
+export function validateToolPayload(payload: unknown, sampleRequest: unknown): Record<string, unknown> {
+  const p = payload === undefined || payload === null ? {} : payload;
+  if (typeof p !== "object" || Array.isArray(p)) throw new Error("payload ของเครื่องมือต้องเป็น JSON object");
+  if (JSON.stringify(p).length > 102400) throw new Error("payload ของเครื่องมือยาวเกิน 100KB");
+  const sample = parseSampleRequest(sampleRequest);
+  if (sample && typeof sample === "object" && !Array.isArray(sample)) {
+    const missing = Object.keys(sample as object).filter((k) => !(k in (p as object)));
+    if (missing.length) throw new Error(`payload ขาดฟิลด์ที่จำเป็น: ${missing.join(", ")}`);
+  }
+  return p as Record<string, unknown>;
+}
+
+export type ToolCallResult = { success: boolean; status: number | null; latency: number; body: string; error?: "TIMEOUT" | "NETWORK" };
+
+export async function executeToolCall(
+  tool: { base_url: string; auth_header_type?: string | null; custom_header_name?: string | null; sample_request?: unknown },
+  apiKey: string,
+  payload: unknown,
+  fetcher: typeof fetch = fetch,
+): Promise<ToolCallResult> {
+  const url = normalizeToolUrl(tool.base_url);
+  const headers = buildToolHeaders(apiKey, tool.auth_header_type, tool.custom_header_name);
+  const body = validateToolPayload(payload, tool.sample_request);
+  headers.set("Content-Type", "application/json");
+  const start = Date.now();
+  try {
+    const res = await fetcher(url, { method: "POST", headers, body: JSON.stringify(body), redirect: "manual", signal: AbortSignal.timeout(20000) });
+    const text = (await res.text()).slice(0, 8000);
+    return { success: res.status >= 200 && res.status < 300, status: res.status, latency: Date.now() - start, body: text };
+  } catch (error) {
+    const timedOut = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
+    return { success: false, status: null, latency: Date.now() - start, body: "", error: timedOut ? "TIMEOUT" : "NETWORK" };
+  }
+}
