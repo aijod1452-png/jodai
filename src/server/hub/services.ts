@@ -609,6 +609,7 @@ const remoteApi = async (req: Request, action: string, body: any, url: URL, supa
     }
     if (error) throw error;
     await logActivity(supabase, { taskId: task.id, eventType: "TASK_QUEUED", description: `สร้างงานผ่าน Remote API: ${command.slice(0, 50)}` });
+    try { await runWorkerTick(); } catch (e) { console.error("kickoff failed", e); }
     return json({ task_id: task.id, status: task.status });
   }
   if (req.method === "GET" && action === "task-status") {
