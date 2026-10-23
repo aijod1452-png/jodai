@@ -80,3 +80,31 @@ export async function testStorageConnection(projectUrl: unknown, key: string, fe
       : "ปลายทางไม่พร้อมใช้งาน ตรวจสอบเครือข่ายและสถานะบริการ";
   return { success: false, latency: Date.now() - start, attempts, message: `${reason} · ${summary}` };
 }
+export const SNAPSHOT_BUCKET = "hub-snapshots";
+/** Hub tables that may be snapshotted; secret, session and token tables are never exported. */
+export const SNAPSHOT_TABLES = ["settings", "providers", "models", "router_state", "tools", "storage_connections", "tasks", "task_steps", "schedules", "schedule_runs", "usage_records", "activity_log", "notifications", "health_checks"] as const;
+
+export async function ensureBucket(client: any, bucket = SNAPSHOT_BUCKET): Promise<void> {
+  const { data, error } = await client.storage.getBucket(bucket);
+  if (data && !error) return;
+  const { error: createError } = await client.storage.createBucket(bucket, { public: false });
+  if (createError && !/already exists/i.test(createError.message)) throw new Error(`สร้าง bucket ไม่สำเร็จ: ${createError.message}`);
+}
+
+export async function createTableSnapshot(client: any, tableName: unknown): Promise<{ path: string; rows: number; bytes: number }> {
+  const table = String(tableName || "");
+  if (!(SNAPSHOT_TABLES as readonly string[]).includes(table)) throw new Error("ไม่อนุญาตให้สำรองตารางนี้");
+  await ensureBucket(client);
+  const rows: unknown[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await client.from(table).select("*").range(from, from + 999);
+    if (error) throw new Error(`อ่านตาราง ${table} ไม่สำเร็จ: ${error.message}`);
+    rows.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  const content = JSON.stringify({ table, createdAt: new Date().toISOString(), rows });
+  const path = `${table}/${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+  const { error } = await client.storage.from(SNAPSHOT_BUCKET).upload(path, new Blob([content], { type: "application/json" }), { contentType: "application/json", upsert: false });
+  if (error) throw new Error(`อัปโหลด snapshot ไม่สำเร็จ: ${error.message}`);
+  return { path, rows: rows.length, bytes: content.length };
+}
