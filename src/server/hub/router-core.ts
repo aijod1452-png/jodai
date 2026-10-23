@@ -15,10 +15,10 @@ const PRICING: Record<string, { default: [number, number]; models: Record<string
   openai: { default: [2.5e-6, 10e-6], models: { "gpt-4o-mini": [0.15e-6, 0.6e-6], "gpt-4o": [2.5e-6, 10e-6], "gpt-4.1-mini": [0.4e-6, 1.6e-6], "gpt-4.1": [2e-6, 8e-6] } },
 };
 export function computeCost(providerType: string, modelId: string, promptTokens: number, completionTokens: number): number {
-  const table = PRICING[providerType] || PRICING.openai;
+  const table = PRICING[providerType] ?? PRICING["openai"]!;
   const id = modelId.toLowerCase();
   const match = Object.keys(table.models).sort((a, b) => b.length - a.length).find((k) => id.includes(k));
-  const [inp, out] = match ? table.models[match] : table.default;
+  const [inp, out] = (match && table.models[match]) || table.default;
   return promptTokens * inp + completionTokens * out;
 }
 
