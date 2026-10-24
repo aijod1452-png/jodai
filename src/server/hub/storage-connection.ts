@@ -49,23 +49,33 @@ export type StorageTestResult = {
   attempts: { endpoint: string; status: number | null; error?: "TIMEOUT" | "NETWORK" }[];
 };
 
-export async function testStorageConnection(projectUrl: unknown, key: string, fetcher: typeof fetch = fetch): Promise<StorageTestResult> {
+export function normalizeBucketName(value: unknown): string {
+  const name = z.string().trim().min(1).max(100).parse(value);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) throw new Error("ชื่อ bucket ไม่ถูกต้อง");
+  return name;
+}
+
+export async function testStorageConnection(projectUrl: unknown, key: string, fetcher: typeof fetch = fetch, bucketName?: unknown): Promise<StorageTestResult> {
   const origin = normalizeProjectUrl(projectUrl);
   const headers = storageHeaders(key);
   const start = Date.now();
   const attempts: StorageTestResult["attempts"] = [];
   // Both probes require the supplied credential. A public health endpoint cannot
   // establish key validity, and no arbitrary table or write is needed.
-  for (const endpoint of ["/rest/v1/", "/storage/v1/bucket"]) {
+  const bucket = bucketName === undefined ? undefined : normalizeBucketName(bucketName);
+  for (const endpoint of bucket ? [`/storage/v1/bucket/${encodeURIComponent(bucket)}`] : ["/rest/v1/", "/storage/v1/bucket"]) {
     try {
       const response = await fetcher(`${origin}${endpoint}`, {
         method: "GET", headers, redirect: "error", signal: AbortSignal.timeout(6000),
       });
       attempts.push({ endpoint, status: response.status });
-      await response.body?.cancel();
+      if (bucket && response.ok) {
+        const metadata = await response.json().catch(() => null);
+        if (metadata?.id !== bucket && metadata?.name !== bucket) return { success: false, latency: Date.now() - start, attempts, message: "ปลายทางไม่ได้ส่งข้อมูล bucket ที่ร้องขอ" };
+      } else await response.body?.cancel();
       if (response.ok) return {
         success: true, latency: Date.now() - start, attempts,
-        message: endpoint === "/rest/v1/" ? "เชื่อมต่อสำเร็จ · REST API" : "เชื่อมต่อสำเร็จ · Storage API (ปลายทางสำรอง); REST API ยังไม่ผ่านการทดสอบ",
+        message: bucket ? `ตรวจสอบ bucket ${bucket} สำเร็จ · Storage API` : endpoint === "/rest/v1/" ? "เชื่อมต่อสำเร็จ · REST API" : "เชื่อมต่อสำเร็จ · Storage API (ปลายทางสำรอง); REST API ยังไม่ผ่านการทดสอบ",
       };
     } catch (error) {
       const timedOut = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
@@ -91,20 +101,39 @@ export async function ensureBucket(client: any, bucket = SNAPSHOT_BUCKET): Promi
   if (createError && !/already exists/i.test(createError.message)) throw new Error(`สร้าง bucket ไม่สำเร็จ: ${createError.message}`);
 }
 
-export async function createTableSnapshot(client: any, tableName: unknown): Promise<{ path: string; rows: number; bytes: number }> {
+export type ExternalSnapshotTarget = { projectUrl: string; key: string; bucketName: string };
+
+export async function createTableSnapshot(client: any, tableName: unknown, external?: ExternalSnapshotTarget, fetcher: typeof fetch = fetch): Promise<{ path: string; rows: number; bytes: number; bucket: string }> {
   const table = String(tableName || "");
   if (!(SNAPSHOT_TABLES as readonly string[]).includes(table)) throw new Error("ไม่อนุญาตให้สำรองตารางนี้");
-  await ensureBucket(client);
+  const bucket = external ? normalizeBucketName(external.bucketName) : SNAPSHOT_BUCKET;
+  if (external) {
+    const check = await testStorageConnection(external.projectUrl, external.key, fetcher, bucket);
+    if (!check.success) throw new Error(check.message);
+  } else await ensureBucket(client);
   const rows: unknown[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await client.from(table).select("*").range(from, from + 999);
+    const { data, error } = await client.from(table).select("*").order("id").range(from, from + 999);
     if (error) throw new Error(`อ่านตาราง ${table} ไม่สำเร็จ: ${error.message}`);
     rows.push(...(data || []));
     if (!data || data.length < 1000) break;
   }
   const content = JSON.stringify({ table, createdAt: new Date().toISOString(), rows });
   const path = `${table}/${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-  const { error } = await client.storage.from(SNAPSHOT_BUCKET).upload(path, new Blob([content], { type: "application/json" }), { contentType: "application/json", upsert: false });
-  if (error) throw new Error(`อัปโหลด snapshot ไม่สำเร็จ: ${error.message}`);
-  return { path, rows: rows.length, bytes: content.length };
+  const blob = new Blob([content], { type: "application/json" });
+  if (external) {
+    const headers = storageHeaders(external.key);
+    headers.set("Content-Type", "application/json");
+    headers.set("x-upsert", "false");
+    let response: Response;
+    try {
+      response = await fetcher(`${normalizeProjectUrl(external.projectUrl)}/storage/v1/object/${encodeURIComponent(bucket)}/${path.split("/").map(encodeURIComponent).join("/")}`, { method: "POST", headers, body: blob, redirect: "error", signal: AbortSignal.timeout(20000) });
+    } catch { throw new Error("อัปโหลด snapshot ไม่สำเร็จ: เครือข่ายขัดข้องหรือหมดเวลา"); }
+    await response.body?.cancel();
+    if (!response.ok) throw new Error(`อัปโหลด snapshot ไม่สำเร็จ: HTTP ${response.status}`);
+  } else {
+    const { error } = await client.storage.from(SNAPSHOT_BUCKET).upload(path, blob, { contentType: "application/json", upsert: false });
+    if (error) throw new Error(`อัปโหลด snapshot ไม่สำเร็จ: ${error.message}`);
+  }
+  return { path, rows: rows.length, bytes: blob.size, bucket };
 }

@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, RefreshCw, Pencil, Power } from "lucide-react";
+import { Plus, Trash2, RefreshCw, Pencil, Power, Archive } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ApiClient } from "../api-client";
 import { SubTabs, ErrorBox, StatusBadge } from "../ui";
 
 type Tab = "tools" | "storage";
 const emptyTool = { id: "", name: "", description: "", baseUrl: "", apiKey: "", authHeaderType: "Bearer", customHeaderName: "", sampleRequest: "" };
-const emptyStorage = { id: "", name: "", projectUrl: "", serviceRoleKey: "" };
+const emptyStorage = { id: "", name: "", projectUrl: "", serviceRoleKey: "", bucketName: "" };
+const snapshotTables = ["settings", "providers", "models", "router_state", "tools", "storage_connections", "tasks", "task_steps", "schedules", "schedule_runs", "usage_records", "activity_log", "notifications", "health_checks"];
 
 export function ToolsStorage() {
   const [tab, setTab] = useState<Tab>("tools");
@@ -17,6 +19,10 @@ export function ToolsStorage() {
   const [storageForm, setStorageForm] = useState(emptyStorage);
   const [testing, setTesting] = useState("");
   const [saving, setSaving] = useState(false);
+  const [snapshotTable, setSnapshotTable] = useState("tasks");
+  const [snapshotStorage, setSnapshotStorage] = useState("");
+  const [snapshotBusy, setSnapshotBusy] = useState(false);
+  const [snapshotResult, setSnapshotResult] = useState<{ path: string; bytes: number; rows: number; bucket: string } | null>(null);
   const [messages, setMessages] = useState<Record<string, { ok: boolean; text: string }>>({});
 
   const loadData = async () => { const res = await ApiClient.request("tools-storage-service/list"); setItems({ tools: res.tools || [], storages: res.storages || [] }); };
@@ -25,7 +31,7 @@ export function ToolsStorage() {
   const openNew = () => { setToolForm(emptyTool); setStorageForm(emptyStorage); setShowForm(!showForm); };
   const edit = (type: "tool" | "storage", x: any) => {
     if (type === "tool") setToolForm({ id: x.id, name: x.name || "", description: x.description || "", baseUrl: x.base_url || "", apiKey: "", authHeaderType: x.auth_header_type || "Bearer", customHeaderName: x.custom_header_name || "", sampleRequest: x.sample_request ? JSON.stringify(x.sample_request) : "" });
-    else setStorageForm({ id: x.id, name: x.name || "", projectUrl: x.project_url || "", serviceRoleKey: "" });
+    else setStorageForm({ id: x.id, name: x.name || "", projectUrl: x.project_url || "", serviceRoleKey: "", bucketName: x.bucket_name || "" });
     setShowForm(true);
   };
 
@@ -64,19 +70,28 @@ export function ToolsStorage() {
     } finally { setTesting(""); }
   };
 
+  const snapshot = async () => {
+    setSnapshotBusy(true); setSnapshotResult(null); setError("");
+    try {
+      const result = await ApiClient.request("tools-storage-service/safety-snapshot", { method: "POST", body: JSON.stringify({ tableName: snapshotTable, ...(snapshotStorage ? { storageId: snapshotStorage } : {}) }) });
+      if (!result.success) throw new Error(result.error || "สำรองข้อมูลไม่สำเร็จ");
+      setSnapshotResult(result); toast.success(result.message);
+    } catch (e: any) { setError(e.message); } finally { setSnapshotBusy(false); }
+  };
+
   const row = (x: any, type: "tool" | "storage", url: string) => (
     <div key={x.id} className={`flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3 text-xs ${x.is_enabled === false ? "opacity-60" : ""}`}>
       <div className="min-w-0">
         <b>{x.name}</b>{x.is_enabled === false && <span className="ml-2 text-warning">ปิดใช้งาน</span>}{x.description && <span className="ml-2 text-muted-foreground">{x.description}</span>}
-        <p className="mt-1 truncate text-muted-foreground">{url} · {x.maskedKey}</p>
+        <p className="mt-1 truncate text-muted-foreground">{url} · {x.maskedKey}{type === "storage" && ` · bucket: ${x.bucket_name || "ยังไม่ตั้งค่า"}`}</p>
         <p className="mt-1 flex items-center gap-2 text-muted-foreground">ทดสอบล่าสุด: {x.last_test_result ? <StatusBadge status={x.last_test_result} /> : "ยังไม่ทดสอบ"}{x.last_test_latency_ms ? ` ${x.last_test_latency_ms}ms` : ""}</p>
-        {messages[x.id] && <p className={`mt-1 break-words ${messages[x.id]!.ok ? "text-success" : "text-destructive"}`}>{messages[x.id]!.text}</p>}
+        {messages[x.id] && <p className={`mt-1 break-words ${messages[x.id]?.ok ? "text-success" : "text-destructive"}`}>{messages[x.id]?.text}</p>}
       </div>
       <div className="flex shrink-0 gap-1">
-        <button onClick={() => test(type, x.id)} disabled={testing === x.id} className="p-2 text-primary" aria-label="ทดสอบ"><RefreshCw size={14} className={testing === x.id ? "animate-spin" : ""} /></button>
-        <button onClick={() => edit(type, x)} className="p-2 text-muted-foreground" aria-label="แก้ไข"><Pencil size={14} /></button>
-        <button onClick={() => toggle(type, x)} className={`p-2 ${x.is_enabled === false ? "text-muted-foreground" : "text-success"}`} aria-label={x.is_enabled === false ? "เปิดใช้งาน" : "ปิดใช้งาน"}><Power size={14} /></button>
-        <button onClick={() => remove(type, x.id)} className="p-2 text-destructive" aria-label="ลบ"><Trash2 size={14} /></button>
+        <Button variant="ghost" size="icon" onClick={() => test(type, x.id)} disabled={testing === x.id} className="text-primary" aria-label="ทดสอบ"><RefreshCw size={14} className={testing === x.id ? "animate-spin" : ""} /></Button>
+        <Button variant="ghost" size="icon" onClick={() => edit(type, x)} className="text-muted-foreground" aria-label="แก้ไข"><Pencil size={14} /></Button>
+        <Button variant="ghost" size="icon" onClick={() => toggle(type, x)} className={x.is_enabled === false ? "text-muted-foreground" : "text-success"} aria-label={x.is_enabled === false ? "เปิดใช้งาน" : "ปิดใช้งาน"}><Power size={14} /></Button>
+        <Button variant="ghost" size="icon" onClick={() => remove(type, x.id)} className="text-destructive" aria-label="ลบ"><Trash2 size={14} /></Button>
       </div>
     </div>
   );
@@ -86,7 +101,7 @@ export function ToolsStorage() {
     <div className="space-y-4">
       <SubTabs value={tab} onChange={(t) => { setTab(t); setShowForm(false); }} items={[["tools", "เครื่องมือ (Tools)"], ["storage", "พื้นที่จัดเก็บภายนอก (External Storage)"]]} />
       <ErrorBox message={error} />
-      <div className="flex justify-end"><button onClick={openNew} className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs text-primary-foreground"><Plus size={14} />เพิ่ม{tab === "tools" ? "เครื่องมือ" : "Storage"}</button></div>
+      <div className="flex justify-end"><Button onClick={openNew}><Plus size={14} />เพิ่ม{tab === "tools" ? "เครื่องมือ" : "Storage"}</Button></div>
       {showForm && (
         <div className="grid gap-3 rounded-2xl border border-border bg-card p-4 md:grid-cols-2">
           {editing && <p className="text-xs text-muted-foreground md:col-span-2">กำลังแก้ไข — เว้นช่องคีย์ว่างไว้เพื่อใช้คีย์เดิม</p>}
@@ -94,7 +109,7 @@ export function ToolsStorage() {
             <>
               <input className="field" placeholder="ชื่อเครื่องมือ" value={toolForm.name} onChange={(e) => setToolForm({ ...toolForm, name: e.target.value })} />
               <input className="field" placeholder="คำอธิบาย" value={toolForm.description} onChange={(e) => setToolForm({ ...toolForm, description: e.target.value })} />
-              <input className="field" placeholder="HTTPS endpoint เช่น https://api.example.com/v1" value={toolForm.baseUrl} onChange={(e) => setToolForm({ ...toolForm, baseUrl: e.target.value })} />
+              <input className="field" placeholder="Endpoint URL (https://... หรือ /api/...)" value={toolForm.baseUrl} onChange={(e) => setToolForm({ ...toolForm, baseUrl: e.target.value })} />
               <input className="field" type="password" placeholder={editing ? "API key ใหม่ (เว้นว่าง = ใช้คีย์เดิม)" : "API key (ไม่บังคับ)"} value={toolForm.apiKey} onChange={(e) => setToolForm({ ...toolForm, apiKey: e.target.value })} />
               <select className="field" value={toolForm.authHeaderType} onChange={(e) => setToolForm({ ...toolForm, authHeaderType: e.target.value })}><option value="Bearer">Bearer</option><option value="raw">Raw header value</option></select>
               <input className="field" placeholder="ชื่อ header (ค่าเริ่มต้น Authorization)" value={toolForm.customHeaderName} onChange={(e) => setToolForm({ ...toolForm, customHeaderName: e.target.value })} />
@@ -104,11 +119,12 @@ export function ToolsStorage() {
             <>
               <input className="field" placeholder="ชื่อ Storage" value={storageForm.name} onChange={(e) => setStorageForm({ ...storageForm, name: e.target.value })} />
               <input className="field" placeholder="Project URL" value={storageForm.projectUrl} onChange={(e) => setStorageForm({ ...storageForm, projectUrl: e.target.value })} />
+              <input className="field md:col-span-2" aria-label="ชื่อ bucket" placeholder="ชื่อ bucket" value={storageForm.bucketName} onChange={(e) => setStorageForm({ ...storageForm, bucketName: e.target.value })} />
               <input className="field md:col-span-2" type="password" placeholder={editing ? "คีย์ใหม่ (เว้นว่าง = ใช้คีย์เดิม)" : "Service role key (เก็บเข้ารหัส)"} value={storageForm.serviceRoleKey} onChange={(e) => setStorageForm({ ...storageForm, serviceRoleKey: e.target.value })} />
               <p className="text-xs text-warning md:col-span-2">Service role key มีสิทธิ์สูงมาก เก็บเฉพาะกรณีจำเป็นและอย่าเปิดเผย</p>
             </>
           )}
-          <button onClick={save} disabled={saving} className="rounded-lg bg-success px-3 py-2 text-xs text-success-foreground disabled:opacity-50 md:col-span-2">{saving ? "กำลังบันทึก..." : "บันทึก"}</button>
+          <Button onClick={save} disabled={saving} className="bg-success text-success-foreground md:col-span-2">{saving ? "กำลังบันทึก..." : "บันทึก"}</Button>
         </div>
       )}
       <div className="space-y-2">
@@ -116,6 +132,15 @@ export function ToolsStorage() {
           ? items.tools.length === 0 ? <div className="py-8 text-center text-xs text-muted-foreground">ยังไม่มีเครื่องมือที่เชื่อมต่อ</div> : items.tools.map((t) => row(t, "tool", t.base_url))
           : items.storages.length === 0 ? <div className="py-8 text-center text-xs text-muted-foreground">ยังไม่มีฐานข้อมูลภายนอก</div> : items.storages.map((s) => row(s, "storage", s.project_url))}
       </div>
+      {tab === "storage" && <section className="space-y-3 border-t border-border pt-4">
+        <h2 className="text-sm font-semibold">Safety Snapshot</h2>
+        <div className="grid items-end gap-3 md:grid-cols-3">
+          <label className="space-y-1 text-xs">ตาราง<select className="field" value={snapshotTable} onChange={e => setSnapshotTable(e.target.value)}>{snapshotTables.map(table => <option key={table} value={table}>{table}</option>)}</select></label>
+          <label className="space-y-1 text-xs">ปลายทาง<select className="field" value={snapshotStorage} onChange={e => setSnapshotStorage(e.target.value)}><option value="">พื้นที่ส่วนตัวของแอป</option>{items.storages.filter(s => s.is_enabled && s.bucket_name).map(s => <option key={s.id} value={s.id}>{s.name} / {s.bucket_name}</option>)}</select></label>
+          <Button onClick={snapshot} disabled={snapshotBusy}><Archive size={16} />{snapshotBusy ? "กำลังสำรอง..." : "สำรองข้อมูล"}</Button>
+        </div>
+        {snapshotResult && <p className="break-all text-xs text-success">{snapshotResult.bucket}/{snapshotResult.path} · {snapshotResult.rows} แถว · {snapshotResult.bytes} bytes</p>}
+      </section>}
     </div>
   );
 }
