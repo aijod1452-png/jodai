@@ -455,6 +455,7 @@ export type Database = {
       }
       storage_connections: {
         Row: {
+          bucket_name: string | null
           created_at: string
           id: string
           is_enabled: boolean
@@ -465,6 +466,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          bucket_name?: string | null
           created_at?: string
           id?: string
           is_enabled?: boolean
@@ -475,6 +477,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          bucket_name?: string | null
           created_at?: string
           id?: string
           is_enabled?: boolean

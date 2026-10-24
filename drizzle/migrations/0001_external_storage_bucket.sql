@@ -1,0 +1,2 @@
+ALTER TABLE public.storage_connections ADD COLUMN bucket_name text;
+COMMENT ON COLUMN public.storage_connections.bucket_name IS 'External Storage bucket selected by the user; null on legacy connections until configured.';

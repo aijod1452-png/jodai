@@ -8,6 +8,13 @@
       "when": 1792512522000,
       "tag": "0000_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792804410115,
+      "tag": "0001_external_storage_bucket",
+      "breakpoints": true
     }
   ]
 }
