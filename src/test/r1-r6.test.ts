@@ -37,7 +37,7 @@ describe("R3 snapshot", () => {
     const upload = vi.fn(async () => ({ error: null }));
     const client: any = {
       storage: { getBucket: async () => ({ data: {}, error: null }), from: (b: string) => { expect(b).toBe(SNAPSHOT_BUCKET); return { upload }; } },
-      from: () => ({ select: () => ({ range: async () => ({ data: [{ id: 1 }, { id: 2 }], error: null }) }) }),
+      from: () => ({ select: () => ({ order: () => ({ range: async () => ({ data: [{ id: 1 }, { id: 2 }], error: null }) }) }) }),
     };
     await expect(createTableSnapshot(client, "provider_secrets")).rejects.toThrow();
     const r = await createTableSnapshot(client, "tasks");
@@ -48,7 +48,7 @@ describe("R3 snapshot", () => {
     const createBucket = vi.fn(async () => ({ error: null }));
     const client: any = {
       storage: { getBucket: async () => ({ data: null, error: { message: "not found" } }), createBucket, from: () => ({ upload: async () => ({ error: null }) }) },
-      from: () => ({ select: () => ({ range: async () => ({ data: [], error: null }) }) }),
+      from: () => ({ select: () => ({ order: () => ({ range: async () => ({ data: [], error: null }) }) }) }),
     };
     await createTableSnapshot(client, "tasks");
     expect(createBucket).toHaveBeenCalledWith(SNAPSHOT_BUCKET, { public: false });
