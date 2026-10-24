@@ -14,4 +14,5 @@
 - Keep tool endpoint URL/header/sample validation, private-address blocking and safe probes in the server-only tool-connection module so save and test share one rule set.
 - REQUIREMENTS.md holds user-approved R-IDs; never edit it without user approval (workspace rule).
 - Model calls in jobs go through callWithFallback (402/429 → cooldown, next model in same step) so fallback behavior lives in one place.
-- Safety snapshots go to the private app bucket via storage-connection.ts with a table allowlist that excludes secret/session/token tables.
+- Safety snapshots use storage-connection.ts and its secret/session/token-excluding table allowlist; default to the private app bucket or the authenticated user's selected external connection, so both targets share the same export rules.
+- Resolve relative tool endpoints against the current server request origin in the tool-connection module, and relay successful previous-step outputs as structured payload context, so scheduled and immediate executions use the same rules.

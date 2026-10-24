@@ -1,7 +1,8 @@
 // Background jobs: task-worker and scheduler-runner (ported from supabase/functions).
 import { getServiceClient, logActivity, nextCronRun, decryptSecret } from "./core";
 import { pickBestModel, callAIModel, putModelInCooldown, isFallbackError } from "./router-core";
-import { executeToolCall } from "./tool-connection";
+import { executeToolCall, buildStepToolPayload } from "./tool-connection";
+import { getRequestUrl } from "@tanstack/react-start/server";
 
 /** R2: try models in fallback order inside the same step; 402/429 → cooldown and continue. */
 async function callWithFallback(prompt: string, systemPrompt?: string) {
@@ -130,8 +131,9 @@ export async function runWorkerTick(): Promise<any> {
       if (!tool.is_enabled) return await failStep(`เครื่องมือ ${tool.name} ถูกปิดใช้งาน`);
       const sec = Array.isArray(tool.tool_secrets) ? tool.tool_secrets[0] : tool.tool_secrets;
       const apiKey = sec ? await decryptSecret(sec.encrypted_secret || null, sec.encryption_iv || null, sec.api_key || null) : "";
-      const call = await executeToolCall(tool, apiKey, nextStep.input_payload?.toolPayload);
-      const output = { summary: call.body.slice(0, 4000), tool: tool.name, httpStatus: call.status, latencyMs: call.latency, error: call.error ?? null };
+      const payload = buildStepToolPayload(nextStep.input_payload?.toolPayload, steps, nextStep.step_number);
+      const call = await executeToolCall(tool, apiKey, payload, fetch, getRequestUrl().origin);
+      const output = { summary: call.body.slice(0, 4000), responseBody: call.body, tool: tool.name, httpStatus: call.status, latencyMs: call.latency, error: call.error ?? null };
       await logActivity(supabase, { taskId: task.id, eventType: "TOOL_CALL", description: `เรียก ${tool.name} → ${call.status === null ? call.error : `HTTP ${call.status}`}`, details: { stepNumber: nextStep.step_number, httpStatus: call.status, latencyMs: call.latency } });
       if (!call.success) {
         await supabase.from("task_steps").update({ output_payload: output }).eq("id", nextStep.id);

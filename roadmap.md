@@ -1,4 +1,11 @@
 # Tools + Storage
+## Phase 1 — R7–R8
+- [x] Record approved R7–R10 without changing R1–R6.
+- [ ] R7 headers, relative URLs, previous-step payload, real response evidence and tests.
+- [ ] R8 external bucket migration, verification, real snapshot upload and UI/tests.
+- [ ] Verify live authenticated flow; no PIN bypass or fabricated success.
+- R9–R10: recorded only; outside phase 1.
+
 - [x] Storage URL/key normalization, compatible decryption, authenticated probes (16 tests).
 - [x] Tool URL/header/sample validation, private-address block, 2xx-only success, masked keys.
 - [x] Edit, enable/disable, delete logging, test latency/messages for tools and storage.

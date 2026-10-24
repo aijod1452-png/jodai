@@ -16,15 +16,17 @@ function isPrivateHost(host: string): boolean {
   return false;
 }
 
-export function normalizeToolUrl(value: unknown): string {
+export function normalizeToolUrl(value: unknown, appOrigin?: string): string {
   const input = z.string().trim().min(1).max(2048).parse(value).replace(/^(?:https:\/\/\s*)+/i, "https://");
   let url: URL;
-  try { url = new URL(input); } catch { throw new Error("URL ของเครื่องมือไม่ถูกต้อง"); }
-  if (url.protocol !== "https:" || url.username || url.password) throw new Error("URL ต้องเป็น HTTPS และไม่มีชื่อผู้ใช้หรือรหัสผ่านใน URL");
-  if (isPrivateHost(url.hostname)) throw new Error("ไม่อนุญาตที่อยู่ภายในหรือเครือข่ายส่วนตัว");
+  const relative = input.startsWith("/") && !input.startsWith("//") && !input.includes("\\");
+  try { url = relative && appOrigin ? new URL(input, new URL(appOrigin).origin) : new URL(input); } catch { throw new Error("URL ของเครื่องมือไม่ถูกต้อง"); }
+  const sameOrigin = !!appOrigin && url.origin === new URL(appOrigin).origin;
+  if ((url.protocol !== "https:" && !(sameOrigin && url.protocol === "http:")) || url.username || url.password) throw new Error("URL ต้องเป็น HTTPS และไม่มีชื่อผู้ใช้หรือรหัสผ่านใน URL");
+  if (!sameOrigin && isPrivateHost(url.hostname)) throw new Error("ไม่อนุญาตที่อยู่ภายในหรือเครือข่ายส่วนตัว");
   const isIp = /^\d+\.\d+\.\d+\.\d+$/.test(url.hostname);
   const labels = url.hostname.split(".");
-  if (!isIp && (url.hostname.length > 253 || labels.length < 2 || labels.some((l) => !validLabel.test(l)))) throw new Error("ชื่อโฮสต์ของเครื่องมือไม่ถูกต้อง");
+  if (!sameOrigin && !isIp && (url.hostname.length > 253 || labels.length < 2 || labels.some((l) => !validLabel.test(l)))) throw new Error("ชื่อโฮสต์ของเครื่องมือไม่ถูกต้อง");
   url.hash = "";
   return url.toString();
 }
@@ -48,7 +50,8 @@ export function buildToolHeaders(apiKey: string, authType: unknown, headerName: 
   const key = apiKey.trim();
   if (key) {
     if (/[\r\n]/.test(key)) throw new Error("API key มีอักขระไม่ถูกต้อง");
-    headers.set(normalizeHeaderName(headerName), normalizeAuthType(authType) === "Bearer" ? `Bearer ${key}` : key);
+    const type = normalizeAuthType(authType);
+    headers.set(type === "Bearer" ? "Authorization" : normalizeHeaderName(headerName), type === "Bearer" ? `Bearer ${key}` : key);
   }
   return headers;
 }
@@ -69,8 +72,9 @@ export async function testToolConnection(
   tool: { base_url: string; auth_header_type?: string | null; custom_header_name?: string | null; sample_request?: unknown },
   apiKey: string,
   fetcher: typeof fetch = fetch,
+  appOrigin?: string,
 ): Promise<ToolTestResult> {
-  const url = normalizeToolUrl(tool.base_url);
+  const url = normalizeToolUrl(tool.base_url, appOrigin);
   const headers = buildToolHeaders(apiKey, tool.auth_header_type, tool.custom_header_name);
   const sample = parseSampleRequest(tool.sample_request);
   if (sample !== null) headers.set("Content-Type", "application/json");
@@ -104,20 +108,30 @@ export function validateToolPayload(payload: unknown, sampleRequest: unknown): R
 
 export type ToolCallResult = { success: boolean; status: number | null; latency: number; body: string; error?: "TIMEOUT" | "NETWORK" };
 
+/** Structured previous outputs are sent as actual JSON, never prompt-only context. */
+export function buildStepToolPayload(payload: unknown, steps: { step_number: number; status: string; output_payload?: unknown }[], stepNumber: number) {
+  const base = validateToolPayload(payload, null);
+  const previousSteps = steps.filter(s => s.status === "SUCCEEDED" && s.step_number < stepNumber)
+    .sort((a, b) => a.step_number - b.step_number)
+    .map(s => ({ stepNumber: s.step_number, output: s.output_payload ?? null }));
+  return { ...base, previousOutput: previousSteps.at(-1)?.output ?? null, previousSteps };
+}
+
 export async function executeToolCall(
   tool: { base_url: string; auth_header_type?: string | null; custom_header_name?: string | null; sample_request?: unknown },
   apiKey: string,
   payload: unknown,
   fetcher: typeof fetch = fetch,
+  appOrigin?: string,
 ): Promise<ToolCallResult> {
-  const url = normalizeToolUrl(tool.base_url);
+  const url = normalizeToolUrl(tool.base_url, appOrigin);
   const headers = buildToolHeaders(apiKey, tool.auth_header_type, tool.custom_header_name);
   const body = validateToolPayload(payload, tool.sample_request);
   headers.set("Content-Type", "application/json");
   const start = Date.now();
   try {
     const res = await fetcher(url, { method: "POST", headers, body: JSON.stringify(body), redirect: "manual", signal: AbortSignal.timeout(20000) });
-    const text = (await res.text()).slice(0, 8000);
+    const text = await res.text();
     return { success: res.status >= 200 && res.status < 300, status: res.status, latency: Date.now() - start, body: text };
   } catch (error) {
     const timedOut = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);

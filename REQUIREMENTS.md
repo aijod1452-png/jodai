@@ -6,3 +6,10 @@
 - R4 Worker drain + immediate trigger: submitting a task starts processing immediately; worker runs repeatedly until the queue is empty, paused, or a time budget is reached.
 - R5 PWA manifest: public/manifest.json linked from the root route head (install to home screen only, no offline mode).
 - R6 Router: expired cooldowns are released automatically and cost is computed per provider/model pricing. Model IDs in the database are NOT changed (user will handle them).
+
+## Phase 1 and later requirements (approved 2026-10-24)
+
+- R7 Tool execution: Bearer uses Authorization: Bearer <key>; raw sends the key directly through the custom header or Authorization. Support relative URLs (/api/...) resolved against the app origin. Send actual previous-step data into the tool payload and record real HTTP status, latency and response body.
+- R8 External Storage: add bucket_name to storage_connections and its form. Verify the actual bucket through the Storage API. Safety Snapshot accepts storageId to upload real table JSON to the external bucket and records the path and file size.
+- R9 Context relay & Tool UI: relay full context between steps without the 800-character truncation and display tool results in the UI. Deferred beyond phase 1.
+- R10 Signed download URL: request a signed download URL for snapshots in private buckets and provide a download button in the UI. Deferred beyond phase 1.
