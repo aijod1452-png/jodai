@@ -2,7 +2,7 @@
 import { json, getServiceClient, validateSession, hashPasscode, hashString, encryptSecret, decryptSecret, logActivity, nextCronRun } from "./core";
 import { testProviderConnection } from "./router-core";
 import { runWorkerTick, runWorkerDrain } from "./jobs";
-import { normalizeProjectUrl, normalizeStorageKey, testStorageConnection, type StorageTestResult } from "./storage-connection";
+import { normalizeProjectUrl, normalizeStorageKey, normalizeBucketName, testStorageConnection, type StorageTestResult, type ExternalSnapshotTarget } from "./storage-connection";
 import { normalizeToolUrl, normalizeHeaderName, normalizeAuthType, parseSampleRequest, testToolConnection, type ToolTestResult } from "./tool-connection";
 
 type Ctx = { req: Request; action: string; body: any; url: URL; supabase: any };
@@ -372,7 +372,7 @@ const toolsStorageService: Handler = async ({ req, action, body, supabase }) => 
       }
       const authType = normalizeAuthType(authHeaderType);
       const headerName = customHeaderName ? normalizeHeaderName(customHeaderName) : null;
-      record = { name: name.trim().slice(0, 100), description: String(description || "").slice(0, 1000), base_url: normalizeToolUrl(baseUrl), auth_header_type: authType, custom_header_name: headerName, sample_request: parseSampleRequest(sampleRequest), is_enabled: isEnabled !== false, updated_at: new Date().toISOString() };
+      record = { name: name.trim().slice(0, 100), description: String(description || "").slice(0, 1000), base_url: normalizeToolUrl(baseUrl, new URL(req.url).origin), auth_header_type: authType, custom_header_name: headerName, sample_request: parseSampleRequest(sampleRequest), is_enabled: isEnabled !== false, updated_at: new Date().toISOString() };
     } catch (e) {
       return json({ error: e instanceof Error && !e.message.startsWith("[") ? e.message : "ข้อมูลเครื่องมือไม่ถูกต้อง" }, 400);
     }
@@ -388,21 +388,23 @@ const toolsStorageService: Handler = async ({ req, action, body, supabase }) => 
     return json({ success: true, id: toolId });
   }
   if (action === "save-storage" && req.method === "POST") {
-    const { id, name, projectUrl, serviceRoleKey, isEnabled } = body;
+    const { id, name, projectUrl, serviceRoleKey, bucketName, isEnabled } = body;
     let cleanUrl: string;
+    let cleanBucket: string;
     let cleanKey = "";
     try {
       if (id !== undefined && id !== null && (typeof id !== "string" || !UUID_RE.test(id))) throw new Error();
       cleanUrl = normalizeProjectUrl(projectUrl);
+      cleanBucket = normalizeBucketName(bucketName);
       if (typeof name !== "string" || !name.trim()) throw new Error();
       if (serviceRoleKey !== undefined && serviceRoleKey !== "") cleanKey = normalizeStorageKey(serviceRoleKey);
       if (!id && !cleanKey) throw new Error();
     } catch {
-      return json({ error: "กรอกชื่อ, HTTPS Project URL และคีย์สำหรับการเชื่อมต่อใหม่ให้ครบ" }, 400);
+      return json({ error: "กรอกชื่อ, HTTPS Project URL, ชื่อ bucket และคีย์สำหรับการเชื่อมต่อใหม่ให้ครบ" }, 400);
     }
     // Encrypt before inserting so configuration errors cannot leave a connection without its credential.
     const encrypted = cleanKey ? await encryptSecret(cleanKey) : null;
-    const record = { name: name.trim().slice(0, 100), project_url: cleanUrl, is_enabled: isEnabled !== false, updated_at: new Date().toISOString() };
+    const record = { name: name.trim().slice(0, 100), project_url: cleanUrl, bucket_name: cleanBucket, is_enabled: isEnabled !== false, updated_at: new Date().toISOString() };
     let storageId = id;
     if (id) {
       const { data, error } = await supabase.from("storage_connections").update(record).eq("id", id).select("id");
@@ -446,7 +448,7 @@ const toolsStorageService: Handler = async ({ req, action, body, supabase }) => 
         let apiKey: string;
         try { apiKey = await decryptSecret(sec?.encrypted_secret || null, sec?.encryption_iv || null, sec?.api_key || null); }
         catch { throw new Error("ถอดรหัสคีย์ไม่ได้: บันทึก API key ของเครื่องมือนี้ใหม่"); }
-        result = await testToolConnection(tool, apiKey);
+        result = await testToolConnection(tool, apiKey, fetch, new URL(req.url).origin);
       } catch (e) {
         result = { success: false, latency: 0, status: null, message: e instanceof Error && !e.message.startsWith("[") ? e.message : "การตั้งค่าเครื่องมือไม่ถูกต้อง กรุณาบันทึกใหม่" };
       }
@@ -465,7 +467,7 @@ const toolsStorageService: Handler = async ({ req, action, body, supabase }) => 
         try { key = await decryptSecret(sec?.encrypted_secret || null, sec?.encryption_iv || null, sec?.service_role_key || null); }
         catch { throw new Error("ถอดรหัสคีย์ไม่ได้: ตรวจสอบ Secret Encryption เดิม หรือบันทึกคีย์ของการเชื่อมต่อนี้ใหม่"); }
         if (!key.trim()) throw new Error("ไม่พบคีย์ กรุณาบันทึก Secret API Key หรือ Service Role Key ใหม่");
-        result = await testStorageConnection(st.project_url, key);
+        result = await testStorageConnection(st.project_url, key, fetch, normalizeBucketName(st.bucket_name));
       } catch (error) {
         result = { success: false, latency: Date.now() - start, attempts: [], message: error instanceof Error && !error.message.startsWith("[") ? error.message : "Project URL หรือรูปแบบคีย์ไม่ถูกต้อง กรุณาบันทึกใหม่" };
       }
@@ -474,12 +476,25 @@ const toolsStorageService: Handler = async ({ req, action, body, supabase }) => 
     }
     return json({ error: "type must be tool or storage" }, 400);
   }
-  if (action === "safety-snapshot") {
-    const { tableName } = body;
+  if (action === "safety-snapshot" && req.method === "POST") {
+    const { tableName, storageId } = body;
     const { createTableSnapshot } = await import("./storage-connection");
     try {
-      const snap = await createTableSnapshot(supabase, tableName);
-      await logActivity(supabase, { eventType: "BACKUP_SNAPSHOT", description: `สำรองตาราง ${tableName} แล้ว ${snap.rows} แถว`, details: { tableName, ...snap } });
+      let external: ExternalSnapshotTarget | undefined;
+      if (storageId !== undefined && storageId !== null) {
+        if (typeof storageId !== "string" || !UUID_RE.test(storageId)) return json({ error: "รหัส Storage ไม่ถูกต้อง" }, 400);
+        const { data: st, error } = await supabase.from("storage_connections").select("*, storage_secrets(service_role_key, encrypted_secret, encryption_iv)").eq("id", storageId).maybeSingle();
+        if (error) throw error;
+        if (!st) return json({ error: "ไม่พบ Storage" }, 404);
+        if (!st.is_enabled) return json({ error: "Storage นี้ถูกปิดใช้งาน" }, 400);
+        const sec = one(st.storage_secrets);
+        let key: string;
+        try { key = await decryptSecret(sec?.encrypted_secret || null, sec?.encryption_iv || null, sec?.service_role_key || null); }
+        catch { throw new Error("ถอดรหัสคีย์ไม่ได้ กรุณาบันทึกคีย์ใหม่"); }
+        external = { projectUrl: st.project_url, key, bucketName: normalizeBucketName(st.bucket_name) };
+      }
+      const snap = await createTableSnapshot(supabase, tableName, external);
+      await logActivity(supabase, { eventType: "BACKUP_SNAPSHOT", description: `สำรองตาราง ${tableName} แล้ว ${snap.rows} แถว`, details: { tableName, storageId: storageId ?? null, ...snap } });
       return json({ success: true, ...snap, message: `สำรองข้อมูลจริงแล้ว ${snap.rows} แถว → ${snap.path}` });
     } catch (e: any) {
       return json({ success: false, error: e.message }, 400);
