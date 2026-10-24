@@ -373,6 +373,10 @@ const toolsStorageService: Handler = async ({ req, action, body, supabase }) => 
       const authType = normalizeAuthType(authHeaderType);
       const headerName = customHeaderName ? normalizeHeaderName(customHeaderName) : null;
       record = { name: name.trim().slice(0, 100), description: String(description || "").slice(0, 1000), base_url: normalizeToolUrl(baseUrl, new URL(req.url).origin), auth_header_type: authType, custom_header_name: headerName, sample_request: parseSampleRequest(sampleRequest), is_enabled: isEnabled !== false, updated_at: new Date().toISOString() };
+      if (typeof baseUrl === "string" && baseUrl.trim().startsWith("/")) {
+        const resolved = new URL(record.base_url);
+        record.base_url = resolved.pathname + resolved.search;
+      }
     } catch (e) {
       return json({ error: e instanceof Error && !e.message.startsWith("[") ? e.message : "ข้อมูลเครื่องมือไม่ถูกต้อง" }, 400);
     }
@@ -494,7 +498,8 @@ const toolsStorageService: Handler = async ({ req, action, body, supabase }) => 
         external = { projectUrl: st.project_url, key, bucketName: normalizeBucketName(st.bucket_name) };
       }
       const snap = await createTableSnapshot(supabase, tableName, external);
-      await logActivity(supabase, { eventType: "BACKUP_SNAPSHOT", description: `สำรองตาราง ${tableName} แล้ว ${snap.rows} แถว`, details: { tableName, storageId: storageId ?? null, ...snap } });
+      const { error: logError } = await supabase.from("activity_log").insert({ event_type: "BACKUP_SNAPSHOT", description: `สำรองตาราง ${tableName} แล้ว ${snap.rows} แถว`, details: { tableName, storageId: storageId ?? null, ...snap } });
+      if (logError) return json({ success: false, ...snap, error: "อัปโหลดไฟล์แล้ว แต่บันทึกประวัติไม่สำเร็จ" }, 500);
       return json({ success: true, ...snap, message: `สำรองข้อมูลจริงแล้ว ${snap.rows} แถว → ${snap.path}` });
     } catch (e: any) {
       return json({ success: false, error: e.message }, 400);

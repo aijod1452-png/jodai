@@ -1,9 +1,9 @@
 # Tools + Storage
 ## Phase 1 — R7–R8
 - [x] Record approved R7–R10 without changing R1–R6.
-- [ ] R7 headers, relative URLs, previous-step payload, real response evidence and tests.
-- [ ] R8 external bucket migration, verification, real snapshot upload and UI/tests.
-- [ ] Verify live authenticated flow; no PIN bypass or fabricated success.
+- [x] R7 code and unit tests: headers, relative URLs, previous-step payload, full HTTP body.
+- [x] R8 code and unit tests: bucket migration confirmed in database, bucket verification, external JSON upload, UI.
+- [ ] R7/R8 authenticated end-to-end verification — blocked by PIN-locked app and unavailable real external connection; no bypass performed.
 - R9–R10: recorded only; outside phase 1.
 
 - [x] Storage URL/key normalization, compatible decryption, authenticated probes (16 tests).
