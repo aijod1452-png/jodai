@@ -176,7 +176,7 @@ export function ToolsStorage() {
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2">
               {LINE_RUN_PRESETS.map((p) => (
-                <Button key={p.id} type="button" variant="outline" size="sm" onClick={() => setRunPayload(JSON.stringify(p.payload, null, 2))}>{p.label}</Button>
+                <Button key={p.id} type="button" variant="outline" size="sm" onClick={() => setRunPayload(JSON.stringify(buildPresetPayload(p), null, 2))}>{p.label}</Button>
               ))}
             </div>
             <textarea className="field min-h-32 w-full font-mono text-xs" rows={8} value={runPayload} onChange={(e) => setRunPayload(e.target.value)} placeholder='{"account":"ObOG","to":"Bomb","message":"..."}' />
