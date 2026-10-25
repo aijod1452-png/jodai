@@ -16,3 +16,4 @@
 - Model calls in jobs go through callWithFallback (402/429 → cooldown, next model in same step) so fallback behavior lives in one place.
 - Safety snapshots use storage-connection.ts and its secret/session/token-excluding table allowlist; default to the private app bucket or the authenticated user's selected external connection, so both targets share the same export rules.
 - Resolve relative tool endpoints against the current server request origin in the tool-connection module, and relay successful previous-step outputs as structured payload context, so scheduled and immediate executions use the same rules.
+- LINE tool template and run presets live in src/hub/line-presets.ts so the tool form, the Run Tool dialog and tests share one source; manual runs go through the run-tool action which reuses executeToolCall.

@@ -6,6 +6,13 @@
 - [ ] R7/R8 authenticated end-to-end verification — blocked by PIN-locked app and unavailable real external connection; no bypass performed.
 - R9–R10: recorded only; outside phase 1.
 
+## R11 — Run Tool UI (approved 2026-10-25)
+- [x] run-tool action: decrypt key, real executeToolCall, real status/latency/body.
+- [x] Run dialog with editable JSON payload, LINE presets (ObOG → Bomb/XAUUSD), live response.
+- [x] LINE template fill button in the tool form.
+- [x] Unit tests (r11.test.ts).
+- [ ] Authenticated end-to-end run against a real tool — blocked by PIN-locked app; no bypass performed.
+
 - [x] Storage URL/key normalization, compatible decryption, authenticated probes (16 tests).
 - [x] Tool URL/header/sample validation, private-address block, 2xx-only success, masked keys.
 - [x] Edit, enable/disable, delete logging, test latency/messages for tools and storage.

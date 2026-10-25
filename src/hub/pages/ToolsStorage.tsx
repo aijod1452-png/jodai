@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, RefreshCw, Pencil, Power, Archive } from "lucide-react";
+import { Plus, Trash2, RefreshCw, Pencil, Power, Archive, Play, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { ApiClient } from "../api-client";
 import { SubTabs, ErrorBox, StatusBadge } from "../ui";
+import { LINE_TOOL_TEMPLATE, LINE_RUN_PRESETS } from "../line-presets";
 
 type Tab = "tools" | "storage";
 const emptyTool = { id: "", name: "", description: "", baseUrl: "", apiKey: "", authHeaderType: "Bearer", customHeaderName: "", sampleRequest: "" };
@@ -24,6 +26,10 @@ export function ToolsStorage() {
   const [snapshotBusy, setSnapshotBusy] = useState(false);
   const [snapshotResult, setSnapshotResult] = useState<{ path: string; bytes: number; rows: number; bucket: string } | null>(null);
   const [messages, setMessages] = useState<Record<string, { ok: boolean; text: string }>>({});
+  const [runTool, setRunTool] = useState<any | null>(null);
+  const [runPayload, setRunPayload] = useState("");
+  const [runResult, setRunResult] = useState<{ success: boolean; status: number | null; latency: number; body: string; error?: string } | null>(null);
+  const [runBusy, setRunBusy] = useState(false);
 
   const loadData = async () => { const res = await ApiClient.request("tools-storage-service/list"); setItems({ tools: res.tools || [], storages: res.storages || [] }); };
   useEffect(() => { loadData().catch((e: any) => setError(e.message)); }, []);
@@ -70,6 +76,24 @@ export function ToolsStorage() {
     } finally { setTesting(""); }
   };
 
+  const openRun = (tool: any) => {
+    setRunTool(tool);
+    setRunResult(null);
+    setRunPayload(tool.sample_request ? JSON.stringify(tool.sample_request, null, 2) : "{}");
+  };
+  const runToolNow = async () => {
+    if (!runTool) return;
+    let payload: unknown;
+    try { payload = JSON.parse(runPayload || "{}"); } catch { toast.error("payload ต้องเป็น JSON ที่ถูกต้อง"); return; }
+    setRunBusy(true); setRunResult(null);
+    try {
+      const res = await ApiClient.request("tools-storage-service/run-tool", { method: "POST", body: JSON.stringify({ id: runTool.id, payload }) });
+      setRunResult(res);
+      if (res.success) toast.success(`สำเร็จ · HTTP ${res.status} · ${res.latency}ms`); else toast.error(res.status === null ? `เรียกไม่สำเร็จ (${res.error})` : `ปลายทางตอบ HTTP ${res.status}`);
+    } catch (e: any) { toast.error(e.message || "รันเครื่องมือไม่สำเร็จ"); } finally { setRunBusy(false); }
+  };
+  const fillLineTemplate = () => setToolForm((f) => ({ ...f, description: LINE_TOOL_TEMPLATE.description, sampleRequest: JSON.stringify(LINE_TOOL_TEMPLATE.sampleRequest, null, 2) }));
+
   const snapshot = async () => {
     setSnapshotBusy(true); setSnapshotResult(null); setError("");
     try {
@@ -88,6 +112,7 @@ export function ToolsStorage() {
         {messages[x.id] && <p className={`mt-1 break-words ${messages[x.id]?.ok ? "text-success" : "text-destructive"}`}>{messages[x.id]?.text}</p>}
       </div>
       <div className="flex shrink-0 gap-1">
+        {type === "tool" && <Button variant="ghost" size="icon" onClick={() => openRun(x)} className="text-success" aria-label="รันเครื่องมือ"><Play size={14} /></Button>}
         <Button variant="ghost" size="icon" onClick={() => test(type, x.id)} disabled={testing === x.id} className="text-primary" aria-label="ทดสอบ"><RefreshCw size={14} className={testing === x.id ? "animate-spin" : ""} /></Button>
         <Button variant="ghost" size="icon" onClick={() => edit(type, x)} className="text-muted-foreground" aria-label="แก้ไข"><Pencil size={14} /></Button>
         <Button variant="ghost" size="icon" onClick={() => toggle(type, x)} className={x.is_enabled === false ? "text-muted-foreground" : "text-success"} aria-label={x.is_enabled === false ? "เปิดใช้งาน" : "ปิดใช้งาน"}><Power size={14} /></Button>
@@ -114,6 +139,7 @@ export function ToolsStorage() {
               <select className="field" value={toolForm.authHeaderType} onChange={(e) => setToolForm({ ...toolForm, authHeaderType: e.target.value })}><option value="Bearer">Bearer</option><option value="raw">Raw header value</option></select>
               <input className="field" placeholder="ชื่อ header (ค่าเริ่มต้น Authorization)" value={toolForm.customHeaderName} onChange={(e) => setToolForm({ ...toolForm, customHeaderName: e.target.value })} />
               <textarea className="field md:col-span-2" rows={3} placeholder='ตัวอย่างคำขอ JSON (ไม่บังคับ) เช่น {"ping":true}' value={toolForm.sampleRequest} onChange={(e) => setToolForm({ ...toolForm, sampleRequest: e.target.value })} />
+              <Button type="button" variant="outline" onClick={fillLineTemplate} className="md:col-span-2"><Sparkles size={14} />เติมเทมเพลต LINE (คำอธิบาย + ตัวอย่างคำขอ)</Button>
             </>
           ) : (
             <>
@@ -141,6 +167,32 @@ export function ToolsStorage() {
         </div>
         {snapshotResult && <p className="break-all text-xs text-success">{snapshotResult.bucket}/{snapshotResult.path} · {snapshotResult.rows} แถว · {snapshotResult.bytes} bytes</p>}
       </section>}
+      <Dialog open={!!runTool} onOpenChange={(open) => { if (!open) setRunTool(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>รันเครื่องมือ: {runTool?.name}</DialogTitle>
+            <DialogDescription className="break-all text-xs">{runTool?.base_url}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {LINE_RUN_PRESETS.map((p) => (
+                <Button key={p.id} type="button" variant="outline" size="sm" onClick={() => setRunPayload(JSON.stringify(p.payload, null, 2))}>{p.label}</Button>
+              ))}
+            </div>
+            <textarea className="field min-h-32 w-full font-mono text-xs" rows={8} value={runPayload} onChange={(e) => setRunPayload(e.target.value)} placeholder='{"account":"ObOG","to":"Bomb","message":"..."}' />
+            <Button onClick={runToolNow} disabled={runBusy} className="w-full"><Play size={14} />{runBusy ? "กำลังรัน..." : "รันจริง"}</Button>
+            {runResult && (
+              <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3 text-xs">
+                <p className="flex items-center gap-2">
+                  <StatusBadge status={runResult.success ? "SUCCESS" : "FAILED"} />
+                  <span>{runResult.status === null ? runResult.error : `HTTP ${runResult.status}`} · {runResult.latency}ms</span>
+                </p>
+                <pre className="max-h-64 overflow-auto break-all whitespace-pre-wrap rounded-lg bg-background p-2 font-mono text-[11px]">{runResult.body || "(ไม่มีเนื้อตอบกลับ)"}</pre>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

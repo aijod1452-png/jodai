@@ -3,7 +3,7 @@ import { json, getServiceClient, validateSession, hashPasscode, hashString, encr
 import { testProviderConnection } from "./router-core";
 import { runWorkerTick, runWorkerDrain } from "./jobs";
 import { normalizeProjectUrl, normalizeStorageKey, normalizeBucketName, testStorageConnection, type StorageTestResult, type ExternalSnapshotTarget } from "./storage-connection";
-import { normalizeToolUrl, normalizeHeaderName, normalizeAuthType, parseSampleRequest, testToolConnection, type ToolTestResult } from "./tool-connection";
+import { normalizeToolUrl, normalizeHeaderName, normalizeAuthType, parseSampleRequest, testToolConnection, validateToolPayload, executeToolCall, type ToolTestResult, type ToolCallResult } from "./tool-connection";
 
 type Ctx = { req: Request; action: string; body: any; url: URL; supabase: any };
 type Handler = (ctx: Ctx) => Promise<Response>;
@@ -479,6 +479,27 @@ const toolsStorageService: Handler = async ({ req, action, body, supabase }) => 
       return json(ue ? { ...result, warning: "ไม่สามารถบันทึกผลทดสอบล่าสุดได้" } : result);
     }
     return json({ error: "type must be tool or storage" }, 400);
+  }
+  if (action === "run-tool" && req.method === "POST") {
+    // R11: manual real run — decrypt the key and execute the actual HTTP request.
+    const { id, payload } = body;
+    if (typeof id !== "string" || !UUID_RE.test(id)) return json({ error: "รหัสเครื่องมือไม่ถูกต้อง" }, 400);
+    const { data: tool } = await supabase.from("tools").select("*, tool_secrets(api_key,encrypted_secret,encryption_iv)").eq("id", id).maybeSingle();
+    if (!tool) return json({ error: "ไม่พบเครื่องมือ" }, 404);
+    if (tool.is_enabled === false) return json({ error: "เครื่องมือนี้ถูกปิดใช้งาน เปิดก่อนรัน" }, 400);
+    const sec = one(tool.tool_secrets);
+    let result: ToolCallResult;
+    try {
+      let apiKey: string;
+      try { apiKey = await decryptSecret(sec?.encrypted_secret || null, sec?.encryption_iv || null, sec?.api_key || null); }
+      catch { throw new Error("ถอดรหัสคีย์ไม่ได้: บันทึก API key ของเครื่องมือนี้ใหม่"); }
+      const cleanPayload = validateToolPayload(payload, tool.sample_request);
+      result = await executeToolCall(tool, apiKey, cleanPayload, fetch, new URL(req.url).origin);
+    } catch (e) {
+      return json({ error: e instanceof Error && !e.message.startsWith("[") ? e.message : "payload หรือการตั้งค่าเครื่องมือไม่ถูกต้อง" }, 400);
+    }
+    await logActivity(supabase, { toolId: id, eventType: "TOOL_RUN", description: `รันเครื่องมือ ${tool.name}: ${result.status === null ? result.error : `HTTP ${result.status}`}`, details: { status: result.status, latency: result.latency, success: result.success } });
+    return json(result);
   }
   if (action === "safety-snapshot" && req.method === "POST") {
     const { tableName, storageId } = body;
