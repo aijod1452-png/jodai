@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from "sonner";
 import { ApiClient } from "../api-client";
 import { SubTabs, ErrorBox, StatusBadge } from "../ui";
-import { LINE_TOOL_TEMPLATE, LINE_RUN_PRESETS } from "../line-presets";
+import { LINE_TOOL_TEMPLATE, LINE_RUN_PRESETS, buildPresetPayload } from "../line-presets";
 
 type Tab = "tools" | "storage";
 const emptyTool = { id: "", name: "", description: "", baseUrl: "", apiKey: "", authHeaderType: "Bearer", customHeaderName: "", sampleRequest: "" };
