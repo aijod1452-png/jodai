@@ -179,7 +179,7 @@ export function ToolsStorage() {
                 <Button key={p.id} type="button" variant="outline" size="sm" onClick={() => setRunPayload(JSON.stringify(buildPresetPayload(p), null, 2))}>{p.label}</Button>
               ))}
             </div>
-            <textarea className="field min-h-32 w-full font-mono text-xs" rows={8} value={runPayload} onChange={(e) => setRunPayload(e.target.value)} placeholder='{"account":"ObOG","to":"Bomb","message":"..."}' />
+            <textarea className="field min-h-32 w-full font-mono text-xs" rows={8} value={runPayload} onChange={(e) => setRunPayload(e.target.value)} placeholder='{"requestId":"...","lineAccount":"ObOG","destination":"Bomb","message":{"type":"text","text":"..."}}' />
             <Button onClick={runToolNow} disabled={runBusy} className="w-full"><Play size={14} />{runBusy ? "กำลังรัน..." : "รันจริง"}</Button>
             {runResult && (
               <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3 text-xs">
