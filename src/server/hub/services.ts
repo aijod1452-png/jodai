@@ -3,7 +3,7 @@ import { json, getServiceClient, validateSession, hashPasscode, hashString, encr
 import { testProviderConnection } from "./router-core";
 import { runWorkerTick, runWorkerDrain } from "./jobs";
 import { normalizeProjectUrl, normalizeStorageKey, normalizeBucketName, testStorageConnection, type StorageTestResult, type ExternalSnapshotTarget } from "./storage-connection";
-import { normalizeToolUrl, normalizeHeaderName, normalizeAuthType, parseSampleRequest, testToolConnection, type ToolTestResult } from "./tool-connection";
+import { normalizeToolUrl, normalizeHeaderName, normalizeAuthType, parseSampleRequest, testToolConnection, validateToolPayload, executeToolCall, type ToolTestResult, type ToolCallResult } from "./tool-connection";
 
 type Ctx = { req: Request; action: string; body: any; url: URL; supabase: any };
 type Handler = (ctx: Ctx) => Promise<Response>;
