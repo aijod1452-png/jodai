@@ -22,7 +22,7 @@ describe("R11 run-tool real execution contract", () => {
   const tool = { base_url: "https://hooks.example.test/line", sample_request: LINE_TOOL_TEMPLATE.sampleRequest };
   it("rejects a payload missing sample_request keys before any request", () => {
     expect(() => validateToolPayload({ account: LINE_ACCOUNT }, tool.sample_request)).toThrow("payload ขาดฟิลด์ที่จำเป็น");
-    expect(() => validateToolPayload(LINE_RUN_PRESETS[0]!.payload, tool.sample_request)).toEqual(LINE_RUN_PRESETS[0]!.payload);
+    expect(validateToolPayload(LINE_RUN_PRESETS[0]!.payload, tool.sample_request)).toEqual(LINE_RUN_PRESETS[0]!.payload);
   });
   it("sends the preset payload for real and returns real status, latency and body", async () => {
     const body = JSON.stringify({ ok: true, delivered: "Bomb" });
