@@ -76,6 +76,24 @@ export function ToolsStorage() {
     } finally { setTesting(""); }
   };
 
+  const openRun = (tool: any) => {
+    setRunTool(tool);
+    setRunResult(null);
+    setRunPayload(tool.sample_request ? JSON.stringify(tool.sample_request, null, 2) : "{}");
+  };
+  const runToolNow = async () => {
+    if (!runTool) return;
+    let payload: unknown;
+    try { payload = JSON.parse(runPayload || "{}"); } catch { toast.error("payload ต้องเป็น JSON ที่ถูกต้อง"); return; }
+    setRunBusy(true); setRunResult(null);
+    try {
+      const res = await ApiClient.request("tools-storage-service/run-tool", { method: "POST", body: JSON.stringify({ id: runTool.id, payload }) });
+      setRunResult(res);
+      if (res.success) toast.success(`สำเร็จ · HTTP ${res.status} · ${res.latency}ms`); else toast.error(res.status === null ? `เรียกไม่สำเร็จ (${res.error})` : `ปลายทางตอบ HTTP ${res.status}`);
+    } catch (e: any) { toast.error(e.message || "รันเครื่องมือไม่สำเร็จ"); } finally { setRunBusy(false); }
+  };
+  const fillLineTemplate = () => setToolForm((f) => ({ ...f, description: LINE_TOOL_TEMPLATE.description, sampleRequest: JSON.stringify(LINE_TOOL_TEMPLATE.sampleRequest, null, 2) }));
+
   const snapshot = async () => {
     setSnapshotBusy(true); setSnapshotResult(null); setError("");
     try {
