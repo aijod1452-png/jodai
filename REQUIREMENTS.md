@@ -13,3 +13,7 @@
 - R8 External Storage: add bucket_name to storage_connections and its form. Verify the actual bucket through the Storage API. Safety Snapshot accepts storageId to upload real table JSON to the external bucket and records the path and file size.
 - R9 Context relay & Tool UI: relay full context between steps without the 800-character truncation and display tool results in the UI. Deferred beyond phase 1.
 - R10 Signed download URL: request a signed download URL for snapshots in private buckets and provide a download button in the UI. Deferred beyond phase 1.
+
+## Tool UI additions (approved 2026-10-25)
+
+- R11 Run Tool: a run-tool action in tools-storage-service decrypts the tool's API key and executes the real request via executeToolCall, returning the real HTTP status, latency and response body. The Tools page has a Run button (Play icon) per tool opening a dialog with an editable JSON payload, quick LINE presets (account ObOG, send to Bomb or XAUUSD) and a live response view. The tool create/edit form has a button that fills the LINE template (description + sample_request) automatically.
