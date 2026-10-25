@@ -167,6 +167,32 @@ export function ToolsStorage() {
         </div>
         {snapshotResult && <p className="break-all text-xs text-success">{snapshotResult.bucket}/{snapshotResult.path} · {snapshotResult.rows} แถว · {snapshotResult.bytes} bytes</p>}
       </section>}
+      <Dialog open={!!runTool} onOpenChange={(open) => { if (!open) setRunTool(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>รันเครื่องมือ: {runTool?.name}</DialogTitle>
+            <DialogDescription className="break-all text-xs">{runTool?.base_url}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {LINE_RUN_PRESETS.map((p) => (
+                <Button key={p.id} type="button" variant="outline" size="sm" onClick={() => setRunPayload(JSON.stringify(p.payload, null, 2))}>{p.label}</Button>
+              ))}
+            </div>
+            <textarea className="field min-h-32 w-full font-mono text-xs" rows={8} value={runPayload} onChange={(e) => setRunPayload(e.target.value)} placeholder='{"account":"ObOG","to":"Bomb","message":"..."}' />
+            <Button onClick={runToolNow} disabled={runBusy} className="w-full"><Play size={14} />{runBusy ? "กำลังรัน..." : "รันจริง"}</Button>
+            {runResult && (
+              <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3 text-xs">
+                <p className="flex items-center gap-2">
+                  <StatusBadge status={runResult.success ? "SUCCESS" : "FAILED"} />
+                  <span>{runResult.status === null ? runResult.error : `HTTP ${runResult.status}`} · {runResult.latency}ms</span>
+                </p>
+                <pre className="max-h-64 overflow-auto break-all whitespace-pre-wrap rounded-lg bg-background p-2 font-mono text-[11px]">{runResult.body || "(ไม่มีเนื้อตอบกลับ)"}</pre>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
