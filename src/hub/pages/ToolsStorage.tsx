@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from "sonner";
 import { ApiClient } from "../api-client";
 import { SubTabs, ErrorBox, StatusBadge } from "../ui";
-import { LINE_TOOL_TEMPLATE, LINE_RUN_PRESETS } from "../line-presets";
+import { LINE_TOOL_TEMPLATE, LINE_RUN_PRESETS, buildPresetPayload } from "../line-presets";
 
 type Tab = "tools" | "storage";
 const emptyTool = { id: "", name: "", description: "", baseUrl: "", apiKey: "", authHeaderType: "Bearer", customHeaderName: "", sampleRequest: "" };
@@ -176,10 +176,10 @@ export function ToolsStorage() {
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2">
               {LINE_RUN_PRESETS.map((p) => (
-                <Button key={p.id} type="button" variant="outline" size="sm" onClick={() => setRunPayload(JSON.stringify(p.payload, null, 2))}>{p.label}</Button>
+                <Button key={p.id} type="button" variant="outline" size="sm" onClick={() => setRunPayload(JSON.stringify(buildPresetPayload(p), null, 2))}>{p.label}</Button>
               ))}
             </div>
-            <textarea className="field min-h-32 w-full font-mono text-xs" rows={8} value={runPayload} onChange={(e) => setRunPayload(e.target.value)} placeholder='{"account":"ObOG","to":"Bomb","message":"..."}' />
+            <textarea className="field min-h-32 w-full font-mono text-xs" rows={8} value={runPayload} onChange={(e) => setRunPayload(e.target.value)} placeholder='{"requestId":"...","lineAccount":"ObOG","destination":"Bomb","message":{"type":"text","text":"..."}}' />
             <Button onClick={runToolNow} disabled={runBusy} className="w-full"><Play size={14} />{runBusy ? "กำลังรัน..." : "รันจริง"}</Button>
             {runResult && (
               <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3 text-xs">
