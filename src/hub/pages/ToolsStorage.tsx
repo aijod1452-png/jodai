@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, RefreshCw, Pencil, Power, Archive } from "lucide-react";
+import { Plus, Trash2, RefreshCw, Pencil, Power, Archive, Play, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { ApiClient } from "../api-client";
 import { SubTabs, ErrorBox, StatusBadge } from "../ui";
+import { LINE_TOOL_TEMPLATE, LINE_RUN_PRESETS } from "../line-presets";
 
 type Tab = "tools" | "storage";
 const emptyTool = { id: "", name: "", description: "", baseUrl: "", apiKey: "", authHeaderType: "Bearer", customHeaderName: "", sampleRequest: "" };
@@ -24,6 +26,10 @@ export function ToolsStorage() {
   const [snapshotBusy, setSnapshotBusy] = useState(false);
   const [snapshotResult, setSnapshotResult] = useState<{ path: string; bytes: number; rows: number; bucket: string } | null>(null);
   const [messages, setMessages] = useState<Record<string, { ok: boolean; text: string }>>({});
+  const [runTool, setRunTool] = useState<any | null>(null);
+  const [runPayload, setRunPayload] = useState("");
+  const [runResult, setRunResult] = useState<{ success: boolean; status: number | null; latency: number; body: string; error?: string } | null>(null);
+  const [runBusy, setRunBusy] = useState(false);
 
   const loadData = async () => { const res = await ApiClient.request("tools-storage-service/list"); setItems({ tools: res.tools || [], storages: res.storages || [] }); };
   useEffect(() => { loadData().catch((e: any) => setError(e.message)); }, []);
