@@ -112,6 +112,7 @@ export function ToolsStorage() {
         {messages[x.id] && <p className={`mt-1 break-words ${messages[x.id]?.ok ? "text-success" : "text-destructive"}`}>{messages[x.id]?.text}</p>}
       </div>
       <div className="flex shrink-0 gap-1">
+        {type === "tool" && <Button variant="ghost" size="icon" onClick={() => openRun(x)} className="text-success" aria-label="รันเครื่องมือ"><Play size={14} /></Button>}
         <Button variant="ghost" size="icon" onClick={() => test(type, x.id)} disabled={testing === x.id} className="text-primary" aria-label="ทดสอบ"><RefreshCw size={14} className={testing === x.id ? "animate-spin" : ""} /></Button>
         <Button variant="ghost" size="icon" onClick={() => edit(type, x)} className="text-muted-foreground" aria-label="แก้ไข"><Pencil size={14} /></Button>
         <Button variant="ghost" size="icon" onClick={() => toggle(type, x)} className={x.is_enabled === false ? "text-muted-foreground" : "text-success"} aria-label={x.is_enabled === false ? "เปิดใช้งาน" : "ปิดใช้งาน"}><Power size={14} /></Button>
@@ -138,6 +139,7 @@ export function ToolsStorage() {
               <select className="field" value={toolForm.authHeaderType} onChange={(e) => setToolForm({ ...toolForm, authHeaderType: e.target.value })}><option value="Bearer">Bearer</option><option value="raw">Raw header value</option></select>
               <input className="field" placeholder="ชื่อ header (ค่าเริ่มต้น Authorization)" value={toolForm.customHeaderName} onChange={(e) => setToolForm({ ...toolForm, customHeaderName: e.target.value })} />
               <textarea className="field md:col-span-2" rows={3} placeholder='ตัวอย่างคำขอ JSON (ไม่บังคับ) เช่น {"ping":true}' value={toolForm.sampleRequest} onChange={(e) => setToolForm({ ...toolForm, sampleRequest: e.target.value })} />
+              <Button type="button" variant="outline" onClick={fillLineTemplate} className="md:col-span-2"><Sparkles size={14} />เติมเทมเพลต LINE (คำอธิบาย + ตัวอย่างคำขอ)</Button>
             </>
           ) : (
             <>
