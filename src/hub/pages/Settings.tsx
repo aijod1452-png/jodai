@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useAuth } from "../auth";
 import { ApiClient } from "../api-client";
 import { ErrorBox } from "../ui";
+import { PwaInstallCard } from '../components/PwaInstallCard';
 
 export function Settings() {
   const { lock } = useAuth();
@@ -38,6 +39,7 @@ export function Settings() {
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-bold">การตั้งค่าระบบ</h2>
+      <PwaInstallCard />
       <div className="space-y-3">
         <div className={`${box} flex items-center justify-between gap-3`}>
           <div><div className="text-sm font-semibold">ล็อกหน้าจอทันที</div><div className="text-xs text-muted-foreground">ปิดเซสชันและกลับสู่หน้าใส่รหัสผ่าน PIN</div></div>

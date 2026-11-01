@@ -1,4 +1,10 @@
 # Tools + Storage
+## R12 — Complete PWA
+- [x] Generated worker, strict cache exclusions, Thai offline fallback and guarded registration.
+- [x] Install/connectivity hook and Settings install card; browser event behavior tested in unit tests.
+- [x] Full unit suite (73/73), automatic build OK, preview has zero worker registrations; generated worker tested with real connection loss in an isolated browser origin.
+- [ ] R12 — Implemented, unverified in published authenticated Settings and native installation: requires publication, PIN unlock and a supported browser; do not deploy without authorization. No mock production paths or auth bypass.
+
 ## Phase 1 — R7–R8
 - [x] Record approved R7–R10 without changing R1–R6.
 - [x] R7 code and unit tests: headers, relative URLs, previous-step payload, full HTTP body.
