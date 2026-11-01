@@ -17,3 +17,7 @@
 ## Tool UI additions (approved 2026-10-25)
 
 - R11 Run Tool: a run-tool action in tools-storage-service decrypts the tool's API key and executes the real request via executeToolCall, returning the real HTTP status, latency and response body. The Tools page has a Run button (Play icon) per tool opening a dialog with an editable JSON payload, quick LINE presets (account ObOG, send to Bomb or XAUUSD) and a live response view. The tool create/edit form has a button that fills the LINE template (description + sample_request) automatically.
+
+## Complete PWA (R12 approved 2026-10-26)
+
+- R12 Complete PWA: extend R5 with a generated /sw.js using vite-plugin-pwa generateSW, fixed public asset precaching (offline.html, icons, manifest), network-first navigation with a Thai offline.html fallback in theme #141a2e, and no caching of /api/, /_server/, ?_data=, supabase.co or requests with x-session-token. Add src/hub/use-pwa.ts for beforeinstallprompt, standalone and connectivity status, and an in-app install card in Settings. Register from a single guarded wrapper called by RootComponent only in production outside development, Lovable previews and iframes; support ?sw=off and unregister matching stale app workers in refused contexts. This approved safe approach replaces handwritten public/sw.js and SSR-only registration checks. Add src/test/r12-pwa.test.ts and run all unit tests. Offline behavior is available only in the published app, not the editor preview.

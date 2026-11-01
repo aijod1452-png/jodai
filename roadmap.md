@@ -1,4 +1,10 @@
 # Tools + Storage
+## R12 — Complete PWA
+- [ ] Generated worker, strict cache exclusions, Thai offline fallback and guarded registration.
+- [ ] Install/connectivity hook and Settings install card.
+- [ ] Full unit suite and preview safety checks.
+- [ ] Published offline/install end-to-end verification — requires publication and a supported browser; do not deploy without authorization.
+
 ## Phase 1 — R7–R8
 - [x] Record approved R7–R10 without changing R1–R6.
 - [x] R7 code and unit tests: headers, relative URLs, previous-step payload, full HTTP body.
