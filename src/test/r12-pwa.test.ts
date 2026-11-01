@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { pwaOptions, prioritizePrivateRoute } from '../../pwa.config';
 import { FIXED_PWA_ASSETS, privatePwaRequest, publicPwaNavigation, hashedPwaAsset, refusePwaRegistration } from '../hub/pwa-policy';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 const props = (path: string, headers: Record<string, string> = {}) => {
   const url = new URL(path, 'https://jodai.lovable.app');
   return { url, request: new Request(url, { headers }) };
@@ -88,7 +88,7 @@ describe('R12 actual generated worker', () => {
       expect(worker.indexOf('workbox.registerRoute(')).toBeLessThan(worker.indexOf('workbox.precacheAndRoute('));
       expect(worker).toContain('workbox.NetworkOnly');
       expect(worker).toContain('workbox.NetworkFirst');
-      expect(worker).toContain('fallbackURL: "/offline.html"');
+      expect(worker).toMatch(/fallbackURL: ['"]\/offline\.html['"]/);
       for (const asset of FIXED_PWA_ASSETS) expect(worker).toContain(`"url": "${asset}"`);
       expect(worker).not.toContain('"url": "index.html"');
       const options = pwaOptions.workbox?.runtimeCaching?.[1]?.options;
