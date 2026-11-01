@@ -11,7 +11,7 @@ export const pwaOptions: Partial<VitePWAOptions> = {
     cleanupOutdatedCaches: true, globPatterns: FIXED_PWA_ASSETS,
     navigateFallback: null, ignoreURLParametersMatching: [], directoryIndex: null,
     runtimeCaching: [
-      { urlPattern: privatePwaRequest, handler: 'NetworkOnly' },
+      { urlPattern: privatePwaRequest, handler: 'NetworkOnly', options: { fetchOptions: { cache: 'no-store' } } },
       {
         urlPattern: publicPwaNavigation, handler: 'NetworkFirst',
         options: {
