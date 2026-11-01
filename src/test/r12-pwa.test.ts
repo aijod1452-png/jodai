@@ -69,6 +69,7 @@ describe('R12 preview safety', () => {
     const register = vi.fn();
     vi.stubGlobal('window', { self: 1, top: 1, location: { hostname: 'jodai.lovable.app', origin: 'https://jodai.lovable.app', search: '' } });
     vi.stubGlobal('navigator', { serviceWorker: { getRegistrations: vi.fn().mockResolvedValue([oldApp, messaging]), register } });
+    vi.stubEnv('SSR', false);
     const { registerAppWorker } = await import('../hub/pwa-registration');
     await registerAppWorker();
     expect(register).not.toHaveBeenCalled();
@@ -93,7 +94,7 @@ describe('R12 actual generated worker', () => {
       const options = pwaOptions.workbox?.runtimeCaching?.[1]?.options;
       const cacheWillUpdate = options?.plugins?.[0]?.cacheWillUpdate;
       expect(cacheWillUpdate).toBeTypeOf('function');
-      if (cacheWillUpdate) expect(await cacheWillUpdate({ request: new Request('https://jodai.lovable.app'), response: new Response('private'), event: {} as ExtendableEvent, state: {} })).toBeNull();
+      if (cacheWillUpdate) expect(await cacheWillUpdate({ request: new Request('https://jodai.lovable.app'), response: new Response('private'), event: {} as Parameters<NonNullable<typeof cacheWillUpdate>>[0]['event'], state: {} })).toBeNull();
       expect(pwaOptions.injectRegister).toBeNull();
       expect(pwaOptions.devOptions?.enabled).toBe(false);
     } finally { await rm(folder, { recursive: true, force: true }); }

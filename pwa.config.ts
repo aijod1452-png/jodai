@@ -9,7 +9,7 @@ export const pwaOptions: Partial<VitePWAOptions> = {
     // Readable output allows a fail-closed ordering check; this does not enable dev workers.
     mode: 'development', cacheId: 'jodai', skipWaiting: true, clientsClaim: true,
     cleanupOutdatedCaches: true, globPatterns: FIXED_PWA_ASSETS,
-    navigateFallback: undefined, ignoreURLParametersMatching: [], directoryIndex: null,
+    navigateFallback: null, ignoreURLParametersMatching: [], directoryIndex: null,
     runtimeCaching: [
       { urlPattern: privatePwaRequest, handler: 'NetworkOnly' },
       {
@@ -35,7 +35,9 @@ export const pwaOptions: Partial<VitePWAOptions> = {
  */
 export function prioritizePrivateRoute(worker: string) {
   const start = worker.indexOf('workbox.registerRoute(');
-  const end = worker.indexOf('\nworkbox.registerRoute(', start + 1);
+  const nextRoute = /\n\s*workbox\.registerRoute\(/g;
+  nextRoute.lastIndex = start + 1;
+  const end = nextRoute.exec(worker)?.index ?? -1;
   const precache = worker.indexOf('workbox.precacheAndRoute(');
   if (start < 0 || end < start || precache < 0 || !worker.slice(start, end).includes('workbox.NetworkOnly')) {
     throw new Error('PWA privacy route ordering could not be verified; refusing worker output');

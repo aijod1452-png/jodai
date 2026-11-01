@@ -29,7 +29,7 @@ export function refusePwaRegistration({ production, hostname, framed, search }: 
 }) {
   const host = hostname.toLowerCase();
   const lovableDomain = /\.(?:lovable\.app|gpt-eng\.com|gptengineer\.run)$/.test(host);
-  const label = host.split('.')[0];
+  const label = host.split('.')[0] ?? '';
   return !production || framed || new URLSearchParams(search).get('sw') === 'off' ||
     (lovableDomain && /^(?:id-preview|preview)(?:-[a-z0-9]+)?--.+$/.test(label)) ||
     (lovableDomain && /^project--610453ed-062a-4b84-a8b3-63b7c00cbf46-dev$/.test(label)) ||
