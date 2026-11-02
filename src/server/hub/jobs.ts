@@ -5,7 +5,7 @@ import { executeToolCall, buildStepToolPayload } from "./tool-connection";
 import { getRequestUrl } from "@tanstack/react-start/server";
 
 /** R2: try models in fallback order inside the same step; 402/429 → cooldown and continue. */
-async function callWithFallback(prompt: string, systemPrompt?: string) {
+export async function callWithFallback(prompt: string, systemPrompt?: string) {
   const tried: string[] = [];
   for (;;) {
     const router = await pickBestModel("text", tried);
