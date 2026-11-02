@@ -17,6 +17,8 @@ export default defineConfig({
         name: 'jodai-generated-pwa-privacy-order', apply: 'build', enforce: 'post',
         closeBundle: { order: 'post', sequential: true, async handler() {
           const path = 'dist/client/sw.js';
+          // R12 build fix: SSR/multi-pass builds close before the worker exists.
+          if (!existsSync(path)) return;
           const generated = await readFile(path, 'utf8');
           await writeFile(path, prioritizePrivateRoute(generated));
         } },

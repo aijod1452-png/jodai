@@ -663,7 +663,41 @@ const remoteApi = async (req: Request, action: string, body: any, url: URL, supa
   return json({ error: "Endpoint not found" }, 404);
 };
 
+// ---------------- chat-service (R13 direct engine, no queue) ----------------
+const chatService: Handler = async ({ req, action, body, supabase }) => {
+  if (action !== "send" || req.method !== "POST") return json({ error: "Endpoint not found" }, 404);
+  const message = typeof body.message === "string" ? body.message.trim() : "";
+  if (!message || message.length > 4000) return json({ error: "กรุณาพิมพ์ข้อความ (ไม่เกิน 4000 ตัวอักษร)" }, 400);
+  const history = (Array.isArray(body.history) ? body.history : [])
+    .filter((t: any) => (t?.role === "user" || t?.role === "assistant") && typeof t.content === "string")
+    .slice(-10);
+  const { data: settings } = await supabase.from("settings").select("master_pause").eq("id", "SYSTEM_CONFIG").maybeSingle();
+  if (settings?.master_pause) return json({ error: "ระบบหยุดประมวลผลชั่วคราว (Master Pause)" }, 409);
+  const { data: tools } = await supabase.from("tools").select("*, tool_secrets(api_key,encrypted_secret,encryption_iv)").eq("is_enabled", true);
+  const { runChat } = await import("./chat");
+  const { callWithFallback } = await import("./jobs");
+  const origin = new URL(req.url).origin;
+  try {
+    const result = await runChat(message, history, tools || [], {
+      callModel: callWithFallback,
+      runTool: async (tool: any, payload) => {
+        const sec = Array.isArray(tool.tool_secrets) ? tool.tool_secrets[0] : tool.tool_secrets;
+        const apiKey = sec ? await decryptSecret(sec.encrypted_secret || null, sec.encryption_iv || null, sec.api_key || null) : "";
+        return executeToolCall(tool, apiKey, payload, fetch, origin);
+      },
+      recordUsage: async ({ router, result }) => {
+        await supabase.from("usage_records").insert({ provider_id: router.provider.id, model_id: router.model.model_id, task_id: null, prompt_tokens: result.promptTokens, completion_tokens: result.completionTokens, cost: result.cost, is_estimated: result.isEstimated });
+      },
+      log: async (eventType, description, details, modelId) => { await logActivity(supabase, { eventType, description, details, modelId }); },
+    });
+    return json(result);
+  } catch (e: any) {
+    return json({ error: e?.message || "ส่งข้อความไม่สำเร็จ" }, 502);
+  }
+};
+
 const sessionServices: Record<string, Handler> = {
+  "chat-service": chatService,
   "dashboard-summary": dashboardSummary,
   "tasks-service": tasksService,
   "ai-service": aiService,
