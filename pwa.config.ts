@@ -8,7 +8,8 @@ export const pwaOptions: Partial<VitePWAOptions> = {
   workbox: {
     // Readable output allows a fail-closed ordering check; this does not enable dev workers.
     mode: 'development', cacheId: 'jodai', skipWaiting: true, clientsClaim: true,
-    cleanupOutdatedCaches: true, globPatterns: FIXED_PWA_ASSETS,
+    // Fixed assets are read from public/: the client build pass does not copy public files (the server bundler does).
+    globDirectory: 'public', cleanupOutdatedCaches: true, globPatterns: FIXED_PWA_ASSETS,
     navigateFallback: null, ignoreURLParametersMatching: [], directoryIndex: null,
     runtimeCaching: [
       { urlPattern: privatePwaRequest, handler: 'NetworkOnly', options: { fetchOptions: { cache: 'no-store' } } },

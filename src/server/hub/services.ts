@@ -688,7 +688,7 @@ const chatService: Handler = async ({ req, action, body, supabase }) => {
       recordUsage: async ({ router, result }) => {
         await supabase.from("usage_records").insert({ provider_id: router.provider.id, model_id: router.model.model_id, task_id: null, prompt_tokens: result.promptTokens, completion_tokens: result.completionTokens, cost: result.cost, is_estimated: result.isEstimated });
       },
-      log: async (eventType, description, details, modelId) => { await logActivity(supabase, { eventType, description, details, modelId }); },
+      log: async (eventType, description, details, modelId) => { await logActivity(supabase, { eventType, description, details, modelId: modelId ?? null }); },
     });
     return json(result);
   } catch (e: any) {
