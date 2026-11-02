@@ -27,3 +27,9 @@
 # R1–R6 (REQUIREMENTS.md)
 - [x] R1–R6 code + 30 tests passing.
 - [ ] Live check with real tools/models/snapshot — needs the user's PIN session and real provider keys.
+
+# R12 build fix / R13 Chat-First (approved 2026-11-02)
+- [x] existsSync guard in closeBundle.
+- [x] chat-service/send direct engine + in-memory tool run + usage/activity logging.
+- [x] Chat-first Home with tool status and quick prompts; chat-service tests.
+- [ ] Live chat with real models/tools — needs the user's PIN session and provider keys.

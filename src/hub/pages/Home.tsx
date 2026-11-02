@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { ApiClient } from "../api-client";
 import type { DashboardData } from "../types";
 import { CommandBox } from "../components/CommandBox";
+import { ChatPanel } from "../components/ChatPanel";
 import { StatusBadge } from "../ui";
 
 const card = "space-y-3 rounded-2xl border border-border bg-card/60 p-4";
@@ -68,7 +69,12 @@ export function Home({ onSelectTask, onNavigate }: { onSelectTask: (id: string) 
         </button>
       </div>
 
-      <CommandBox onSuccess={onSelectTask} />
+      <ChatPanel />
+
+      <details className="rounded-2xl border border-border bg-card/40 p-3">
+        <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">สร้างงานแบบคิว (หลายขั้นตอน)</summary>
+        <div className="mt-3"><CommandBox onSuccess={onSelectTask} /></div>
+      </details>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         <div className={card}>

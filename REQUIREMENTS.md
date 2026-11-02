@@ -21,3 +21,8 @@
 ## Complete PWA (R12 approved 2026-10-26)
 
 - R12 Complete PWA: extend R5 with a generated /sw.js using vite-plugin-pwa generateSW, fixed public asset precaching (offline.html, icons, manifest), network-first navigation with a Thai offline.html fallback in theme #141a2e, and no caching of /api/, /_server/, ?_data=, supabase.co or requests with x-session-token. Add src/hub/use-pwa.ts for beforeinstallprompt, standalone and connectivity status, and an in-app install card in Settings. Register from a single guarded wrapper called by RootComponent only in production outside development, Lovable previews and iframes; support ?sw=off and unregister matching stale app workers in refused contexts. This approved safe approach replaces handwritten public/sw.js and SSR-only registration checks. Add src/test/r12-pwa.test.ts and run all unit tests. Offline behavior is available only in the published app, not the editor preview.
+
+## R12 build fix and R13 Chat-First Engine (approved 2026-11-02)
+
+- R12 build fix: the closeBundle hook in vite.config.ts checks existsSync before reading dist/client/sw.js so SSR/multi-pass builds never fail with ENOENT.
+- R13 Chat-First Direct Engine: chat-service (action "send") in src/server/hub/services.ts loads enabled Tools and calls models directly through callWithFallback without the DB queue. When the AI decides to call a Tool, executeToolCall runs in memory immediately, with logActivity and usage_records written. src/hub/pages/Home.tsx becomes a full Chat-First page with live conversation, clear Tool Execution status and Quick Prompts. Unit tests in src/test/chat-service.test.ts; build and all tests must pass.
