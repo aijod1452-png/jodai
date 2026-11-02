@@ -7,6 +7,7 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from 'vite-plugin-pwa';
 import { readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { pwaOptions, prioritizePrivateRoute } from './pwa.config';
 
 export default defineConfig({
