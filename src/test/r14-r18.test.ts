@@ -10,7 +10,7 @@ const config = { accountId: "a".repeat(32), bucketName: "backups", accessKeyId: 
 const id = "11111111-1111-4111-8111-111111111111";
 afterEach(() => vi.unstubAllEnvs());
 function database() {
-  const records: Record<string, any[]> = { storage_connections: [], storage_secrets: [], activity_log: [] };
+  const records: Record<string, any[]> & { storage_connections: any[]; storage_secrets: any[]; activity_log: any[] } = { storage_connections: [], storage_secrets: [], activity_log: [] };
   const client = { from(table: string) {
     let action = "select", value: any, filter: any, single = false;
     const q: any = {
@@ -21,7 +21,7 @@ function database() {
       maybeSingle: () => { single = true; return q; }, single: () => { single = true; return q; },
       then: (resolve: any) => {
         let data: any[] = (records[table] || []).filter(r => !filter || r[filter[0]] === filter[1]);
-        if (action === "insert" || action === "upsert") { const row = { id, ...value }; records[table].push(row); data = [row]; }
+        if (action === "insert" || action === "upsert") { const row = { id, ...value }; const target = records[table]; if (!target) throw new Error("Unknown test table"); target.push(row); data = [row]; }
         if (action === "update") data.forEach(r => Object.assign(r, value));
         if (table === "storage_connections") data = data.map(r => ({ ...r, storage_secrets: records.storage_secrets.filter(s => s.storage_id === r.id) }));
         return Promise.resolve({ data: single ? data[0] ?? null : data, error: null }).then(resolve);

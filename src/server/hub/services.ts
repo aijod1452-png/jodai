@@ -403,6 +403,11 @@ const toolsStorageService: Handler = async ({ req, action, body, supabase }) => 
     const { type, id } = body;
     const table = tableOf(type);
     if (!table || typeof id !== "string" || !UUID_RE.test(id)) return json({ error: "type and valid id required" }, 400);
+    if (type === "storage") {
+      const { data: storage, error } = await supabase.from("storage_connections").select("storage_type").eq("id", id).maybeSingle();
+      if (error) return json({ error: "ตรวจ Storage ไม่สำเร็จ" }, 400);
+      if (storage?.storage_type === "r2") return json({ error: "R2 ไม่อนุญาต delete; ปิดใช้งานการเชื่อมต่อแทน" }, 400);
+    }
     const { data, error } = await supabase.from(table).delete().eq("id", id).select("id, name");
     if (error) throw error;
     if (!data?.length) return json({ error: "ไม่พบรายการ" }, 404);

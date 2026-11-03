@@ -22,7 +22,7 @@ export function r2Credentials(accessKeyId: unknown, secretAccessKey: unknown) {
 }
 export function r2Path(value: unknown, prefix = false): string {
   if (prefix && value === "") return "";
-  if (typeof value !== "string" || !value || new TextEncoder().encode(value).length > 1024 || /[:\\%?#\u0000-\u001f\u007f]/.test(value) || value.startsWith("/") || value.split("/").some(p => p === "." || p === ".." || !p && !(prefix && value.endsWith("/") && p === value.split("/").at(-1)))) throw new R2Error("INVALID_PATH");
+  if (typeof value !== "string" || !value || new TextEncoder().encode(value).length > 1024 || /[:\\%?#\u0000-\u001f\u007f]/.test(value) || value.startsWith("/") || value.split("/").some((p, index, segments) => p === "." || p === ".." || !p && !(prefix && index === segments.length - 1))) throw new R2Error("INVALID_PATH");
   return value;
 }
 export async function boundedText(response: Response, limit: number): Promise<string> {
@@ -65,6 +65,7 @@ export function createR2Adapter(config: R2Config, fetcher: typeof fetch = fetch)
       const contentType = (response.headers.get("content-type") || "").split(";")[0]?.trim() || "";
       if (!(R2_TYPES as readonly string[]).includes(contentType)) { await response.body?.cancel(); throw new R2Error("CONTENT_TYPE", response.status); }
       const content = await boundedText(response, R2_TEXT_LIMIT);
+      if (content.includes(credentials.accessKeyId) || content.includes(credentials.secretAccessKey)) throw new R2Error("SENSITIVE_RESPONSE");
       return { status: response.status, path, bytes: new TextEncoder().encode(content).length, contentType, content };
     },
     async list(prefix = "", cursor?: string) {
@@ -76,7 +77,8 @@ export function createR2Adapter(config: R2Config, fetcher: typeof fetch = fetch)
       let root: any; try { root = new XMLParser({ processEntities: false, parseTagValue: false }).parse(xml).ListBucketResult; } catch { throw new R2Error("INVALID_RESPONSE"); }
       if (!root || root.Name !== bucket) throw new R2Error("INVALID_RESPONSE");
       const entries = root.Contents ? Array.isArray(root.Contents) ? root.Contents : [root.Contents] : [];
-      const objects = entries.slice(0, 100).map((entry: any) => { const path = r2Path(entry.Key); if (!path.startsWith(prefix)) throw new R2Error("INVALID_RESPONSE"); const bytes = Number(entry.Size); if (!Number.isSafeInteger(bytes) || bytes < 0) throw new R2Error("INVALID_RESPONSE"); return { path, bytes }; });
+      const objects = entries.slice(0, 100).map((entry: any) => { const path = r2Path(entry.Key); if (!path.startsWith(prefix) || path.includes(credentials.accessKeyId) || path.includes(credentials.secretAccessKey)) throw new R2Error("INVALID_RESPONSE"); const bytes = Number(entry.Size); if (!Number.isSafeInteger(bytes) || bytes < 0) throw new R2Error("INVALID_RESPONSE"); return { path, bytes }; });
+      if (root.NextContinuationToken && (typeof root.NextContinuationToken !== "string" || root.NextContinuationToken.length > 2048 || root.NextContinuationToken.includes(credentials.accessKeyId) || root.NextContinuationToken.includes(credentials.secretAccessKey))) throw new R2Error("INVALID_RESPONSE");
       return { status: response.status, objects, cursor: root.NextContinuationToken || null, truncated: root.IsTruncated === "true" };
     },
   };
