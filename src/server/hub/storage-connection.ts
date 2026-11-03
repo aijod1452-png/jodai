@@ -108,7 +108,7 @@ export type ExternalSnapshotTarget = { type?: "supabase"; projectUrl: string; ke
 export function snapshotSafeRow(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(snapshotSafeRow);
   if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(Object.entries(value).filter(([name]) => !/secret|session|token|passcode|password|salt|auth|api_key|access_key|encryption|content|body|payload|prompt/i.test(name)).map(([name, entry]) => [name, snapshotSafeRow(entry)]));
+  return Object.fromEntries(Object.entries(value).filter(([name]) => !/secret|session|token|passcode|password|salt|auth|key|encryption|content|body|payload|prompt/i.test(name)).map(([name, entry]) => [name, snapshotSafeRow(entry)]));
 }
 
 export async function createTableSnapshot(client: any, tableName: unknown, external?: ExternalSnapshotTarget, fetcher: typeof fetch = fetch): Promise<{ path: string; rows: number; bytes: number; bucket: string }> {

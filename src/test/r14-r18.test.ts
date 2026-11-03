@@ -61,6 +61,14 @@ describe("R14 encrypted provider lifecycle", () => {
     expect(await storageTarget({ ...records.storage_connections[0], storage_secrets: records.storage_secrets[0] })).toEqual({ projectUrl: "https://example.test", bucketName: "backup", key: "sb_secret_fixture" });
     expect(await storageTarget({ project_url: "https://example.test", bucket_name: "backup", storage_secrets: { service_role_key: "sb_secret_legacy" } })).toMatchObject({ key: "sb_secret_legacy" });
   });
+  it("rejects incomplete credentials before saving and corrupted ciphertext without plaintext downgrade", async () => {
+    const { client, records } = await connected();
+    await expect(saveStorage(client, { name: "Bad", storageType: "r2", accountId: config.accountId, bucketName: "backups", accessKeyId: config.accessKeyId })).rejects.toThrow();
+    expect(records.storage_connections).toHaveLength(1);
+    await expect(storageTarget({ ...records.storage_connections[0], storage_secrets: { encrypted_secret: "bad", encryption_iv: "bad", service_role_key: JSON.stringify(config) } })).rejects.toThrow("CREDENTIAL_DECRYPT_FAILED");
+    const result = await saveStorage(client, { id, name: "Renamed", storageType: "r2", accountId: config.accountId, bucketName: "backups" });
+    expect(result).toEqual({ success: true, id }); expect(records.storage_secrets).toHaveLength(1);
+  });
 });
 
 describe("R15 authenticated read-only R2 probe", () => {
@@ -98,6 +106,14 @@ describe("R15 authenticated read-only R2 probe", () => {
     expect(records.activity_log[0].details).toMatchObject({ storageId: id, provider: "r2", success: true, status: 200 });
     expect(JSON.stringify(records.activity_log)).not.toContain(config.secretAccessKey);
     expect((fetcher.mock.calls[0]?.[0] as Request).method).toBe("HEAD");
+  });
+  it("existing Supabase probe still validates bucket through its Storage API", async () => {
+    vi.stubEnv("AIH_SECRET_ENCRYPTION_KEY", "test-encryption-source"); const { client } = database();
+    await saveStorage(client, { name: "Existing", projectUrl: "https://example.test", bucketName: "backups", serviceRoleKey: "sb_secret_fixture" });
+    const fetcher = vi.fn<typeof fetch>(async () => new Response('{"id":"backups"}'));
+    expect((await probeStorage(client, id, fetcher)).success).toBe(true);
+    expect(fetcher.mock.calls[0]?.[0]).toBe("https://example.test/storage/v1/bucket/backups");
+    expect(fetcher.mock.calls[0]?.[1]?.method).toBe("GET");
   });
 });
 
@@ -141,6 +157,11 @@ describe("R17 scoped AI list/read/write", () => {
     for (const response of [new Response("x".repeat(R2_TEXT_LIMIT + 1), { headers: { "content-type": "text/plain" } }), new Response("binary", { headers: { "content-type": "image/png" } })]) await expect(createR2Adapter(config, async () => response).read("a")).rejects.toThrow();
     await expect(createR2Adapter(config, async () => new Response("<ListBucketResult><Name>other</Name></ListBucketResult>")).list()).rejects.toThrow("INVALID_RESPONSE");
   });
+  it("refuses credential echoes in successful reads and malformed list metadata", async () => {
+    await expect(createR2Adapter(config, async () => new Response(config.secretAccessKey, { headers: { "content-type": "text/plain" } })).read("a")).rejects.toThrow("SENSITIVE_RESPONSE");
+    await expect(createR2Adapter(config, async () => new Response('<ListBucketResult><Name>backups</Name><Contents><Key>a</Key><Size>-1</Size></Contents></ListBucketResult>')).list()).rejects.toThrow("INVALID_RESPONSE");
+    expect(() => r2Path("a//b/", true)).toThrow();
+  });
   it.each(["list", "read", "write"])("AI %s invokes the real backend adapter without prompt credentials or content audit", async operation => {
     const { client, records } = await connected(); const storage = records.storage_connections[0];
     const tools = storageChatTools([{ ...storage, storage_secrets: records.storage_secrets[0] }]);
@@ -161,6 +182,11 @@ describe("R17 scoped AI list/read/write", () => {
 });
 
 describe("R18 failed/rejected calls are audited safely", () => {
+  it("does not report success if real call succeeded but audit persistence failed", async () => {
+    const { client } = await connected(); const original = client.from;
+    client.from = (table: string) => table === "activity_log" ? { insert: async () => ({ error: { message: "internal" } }) } as any : original(table);
+    await expect(runStorageOperation(client, id, { operation: "write", path: "a.txt", contentType: "text/plain", content: "private" }, async () => new Response(null))).rejects.toThrow("AUDIT_FAILED");
+  });
   it("records denied HTTP status and rejected deletes without upstream body or file contents", async () => {
     const { client, records } = await connected(); const fetcher = vi.fn<typeof fetch>(async () => new Response(config.secretAccessKey, { status: 403 }));
     await expect(runStorageOperation(client, id, { operation: "read", path: "a.txt" }, fetcher)).rejects.toThrow("AUTH_DENIED");
