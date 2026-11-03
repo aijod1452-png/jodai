@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createR2Adapter, R2_SNAPSHOT_LIMIT, type R2Config } from "./r2-storage";
 
 export function normalizeProjectUrl(value: unknown): string {
   const input = z.string().trim().min(1).max(2048).parse(value)
@@ -101,13 +102,24 @@ export async function ensureBucket(client: any, bucket = SNAPSHOT_BUCKET): Promi
   if (createError && !/already exists/i.test(createError.message)) throw new Error(`สร้าง bucket ไม่สำเร็จ: ${createError.message}`);
 }
 
-export type ExternalSnapshotTarget = { projectUrl: string; key: string; bucketName: string };
+export type ExternalSnapshotTarget = { type?: "supabase"; projectUrl: string; key: string; bucketName: string } | ({ type: "r2" } & R2Config);
+
+/** Remove sensitive fields recursively, including settings credentials and legacy log payloads. */
+export function snapshotSafeRow(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(snapshotSafeRow);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).filter(([name]) => !/secret|session|token|passcode|password|salt|auth|api_key|access_key|encryption|content|body|payload|prompt/i.test(name)).map(([name, entry]) => [name, snapshotSafeRow(entry)]));
+}
 
 export async function createTableSnapshot(client: any, tableName: unknown, external?: ExternalSnapshotTarget, fetcher: typeof fetch = fetch): Promise<{ path: string; rows: number; bytes: number; bucket: string }> {
   const table = String(tableName || "");
   if (!(SNAPSHOT_TABLES as readonly string[]).includes(table)) throw new Error("ไม่อนุญาตให้สำรองตารางนี้");
   const bucket = external ? normalizeBucketName(external.bucketName) : SNAPSHOT_BUCKET;
-  if (external) {
+  const r2 = external?.type === "r2" ? createR2Adapter(external, fetcher) : undefined;
+  if (r2) {
+    const check = await r2.probe();
+    if (!check.success) throw new Error(check.message);
+  } else if (external && external.type !== "r2") {
     const check = await testStorageConnection(external.projectUrl, external.key, fetcher, bucket);
     if (!check.success) throw new Error(check.message);
   } else await ensureBucket(client);
@@ -115,13 +127,15 @@ export async function createTableSnapshot(client: any, tableName: unknown, exter
   for (let from = 0; ; from += 1000) {
     const { data, error } = await client.from(table).select("*").order("id").range(from, from + 999);
     if (error) throw new Error(`อ่านตาราง ${table} ไม่สำเร็จ: ${error.message}`);
-    rows.push(...(data || []));
+    rows.push(...(data || []).map(snapshotSafeRow));
     if (!data || data.length < 1000) break;
   }
   const content = JSON.stringify({ table, createdAt: new Date().toISOString(), rows });
   const path = `${table}/${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
   const blob = new Blob([content], { type: "application/json" });
-  if (external) {
+  if (r2) {
+    await r2.write(path, blob, R2_SNAPSHOT_LIMIT);
+  } else if (external && external.type !== "r2") {
     const headers = storageHeaders(external.key);
     headers.set("Content-Type", "application/json");
     headers.set("x-upsert", "false");
