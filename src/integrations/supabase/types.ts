@@ -455,6 +455,7 @@ export type Database = {
       }
       storage_connections: {
         Row: {
+          account_id: string | null
           bucket_name: string | null
           created_at: string
           id: string
@@ -463,9 +464,11 @@ export type Database = {
           last_tested_at: string | null
           name: string
           project_url: string
+          storage_type: string
           updated_at: string
         }
         Insert: {
+          account_id?: string | null
           bucket_name?: string | null
           created_at?: string
           id?: string
@@ -474,9 +477,11 @@ export type Database = {
           last_tested_at?: string | null
           name: string
           project_url: string
+          storage_type?: string
           updated_at?: string
         }
         Update: {
+          account_id?: string | null
           bucket_name?: string | null
           created_at?: string
           id?: string
@@ -485,6 +490,7 @@ export type Database = {
           last_tested_at?: string | null
           name?: string
           project_url?: string
+          storage_type?: string
           updated_at?: string
         }
         Relationships: []

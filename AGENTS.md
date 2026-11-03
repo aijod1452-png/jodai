@@ -14,7 +14,8 @@
 - Keep tool endpoint URL/header/sample validation, private-address blocking and safe probes in the server-only tool-connection module so save and test share one rule set.
 - REQUIREMENTS.md holds user-approved R-IDs; never edit it without user approval (workspace rule).
 - Model calls in jobs go through callWithFallback (402/429 → cooldown, next model in same step) so fallback behavior lives in one place.
-- Safety snapshots use storage-connection.ts and its secret/session/token-excluding table allowlist; default to the private app bucket or the authenticated user's selected external connection, so both targets share the same export rules.
+- Safety snapshots use storage-connection.ts with its table allowlist and recursive sensitive-field exclusion; all providers share the same export rules to keep credentials and session data out of backups.
+- R2 signing, fixed account/bucket endpoints and bounded text operations live in r2-storage.ts; storage-service.ts owns encrypted connection lifecycle, safe projections and metadata-only audit so UI and chat share one server-only security boundary.
 - Resolve relative tool endpoints against the current server request origin in the tool-connection module, and relay successful previous-step outputs as structured payload context, so scheduled and immediate executions use the same rules.
 - LINE tool template and run presets live in src/hub/line-presets.ts so the tool form, the Run Tool dialog and tests share one source; manual runs go through the run-tool action which reuses executeToolCall.
 - Generate app workers only with vite-plugin-pwa; the build ordering check puts generated NetworkOnly privacy routing before precache, and the single registration wrapper rejects dev/preview/iframe contexts to avoid private caching and stale previews. Navigation HTML is never persisted; only public fixed/hashed assets may be cached.

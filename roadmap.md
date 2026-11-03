@@ -1,4 +1,12 @@
 # Tools + Storage
+## R14–R18 — R2 integration
+- [x] R14 code: encrypted R2 connections, additive schema confirmed in database, generated types and provider form.
+- [x] R15 code: read-only signed HEAD bucket probe and safe errors; independently verified SigV4 in simulated API test.
+- [x] R16 code: shared snapshots to both providers and recursive sensitive field exclusions; simulated uploads verified.
+- [x] R17 code: backend-only AI list/read/write, strict path/type/size checks and rejection of delete/URLs; simulated integration verified.
+- [x] R18 checks: 115/115 unit/integration tests passed, automatic build OK, metadata-only audit tested; unauthenticated actions return 401.
+- R14–R18 status: Implemented, unverified in the live authenticated environment. Database has no R2 connection; supplied real credentials and unlocked PIN session are required. No live R2 claim.
+- [ ] Live R2 and authenticated UI checks — requires R2 credentials and an unlocked PIN session; no delete or signed downloads.
 ## R12 — Complete PWA
 - [x] Generated worker, strict cache exclusions, Thai offline fallback and guarded registration.
 - [x] Install/connectivity hook and Settings install card; browser event behavior tested in unit tests.
