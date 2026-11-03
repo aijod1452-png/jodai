@@ -9,7 +9,7 @@ import { LINE_TOOL_TEMPLATE, LINE_RUN_PRESETS, buildPresetPayload } from "../lin
 
 type Tab = "tools" | "storage";
 const emptyTool = { id: "", name: "", description: "", baseUrl: "", apiKey: "", authHeaderType: "Bearer", customHeaderName: "", sampleRequest: "" };
-const emptyStorage = { id: "", name: "", projectUrl: "", serviceRoleKey: "", bucketName: "" };
+const emptyStorage = { id: "", name: "", storageType: "supabase", accountId: "", accessKeyId: "", secretAccessKey: "", projectUrl: "", serviceRoleKey: "", bucketName: "" };
 const snapshotTables = ["settings", "providers", "models", "router_state", "tools", "storage_connections", "tasks", "task_steps", "schedules", "schedule_runs", "usage_records", "activity_log", "notifications", "health_checks"];
 
 export function ToolsStorage() {
@@ -37,7 +37,7 @@ export function ToolsStorage() {
   const openNew = () => { setToolForm(emptyTool); setStorageForm(emptyStorage); setShowForm(!showForm); };
   const edit = (type: "tool" | "storage", x: any) => {
     if (type === "tool") setToolForm({ id: x.id, name: x.name || "", description: x.description || "", baseUrl: x.base_url || "", apiKey: "", authHeaderType: x.auth_header_type || "Bearer", customHeaderName: x.custom_header_name || "", sampleRequest: x.sample_request ? JSON.stringify(x.sample_request) : "" });
-    else setStorageForm({ id: x.id, name: x.name || "", projectUrl: x.project_url || "", serviceRoleKey: "", bucketName: x.bucket_name || "" });
+    else setStorageForm({ ...emptyStorage, id: x.id, name: x.name || "", storageType: x.storage_type || "supabase", accountId: x.account_id || "", projectUrl: x.project_url || "", bucketName: x.bucket_name || "" });
     setShowForm(true);
   };
 
@@ -51,7 +51,7 @@ export function ToolsStorage() {
         const { id, ...rest } = storageForm;
         await ApiClient.request("tools-storage-service/save-storage", { method: "POST", body: JSON.stringify({ ...rest, ...(id ? { id } : {}) }) });
       }
-      setShowForm(false); setError(""); toast.success("บันทึกแล้ว"); await loadData();
+      setStorageForm(emptyStorage); setShowForm(false); setError(""); toast.success("บันทึกแล้ว"); await loadData();
     } catch (e: any) { setError(e.message); } finally { setSaving(false); }
   };
   const remove = async (type: "tool" | "storage", id: string) => {
@@ -116,7 +116,7 @@ export function ToolsStorage() {
         <Button variant="ghost" size="icon" onClick={() => test(type, x.id)} disabled={testing === x.id} className="text-primary" aria-label="ทดสอบ"><RefreshCw size={14} className={testing === x.id ? "animate-spin" : ""} /></Button>
         <Button variant="ghost" size="icon" onClick={() => edit(type, x)} className="text-muted-foreground" aria-label="แก้ไข"><Pencil size={14} /></Button>
         <Button variant="ghost" size="icon" onClick={() => toggle(type, x)} className={x.is_enabled === false ? "text-muted-foreground" : "text-success"} aria-label={x.is_enabled === false ? "เปิดใช้งาน" : "ปิดใช้งาน"}><Power size={14} /></Button>
-        <Button variant="ghost" size="icon" onClick={() => remove(type, x.id)} className="text-destructive" aria-label="ลบ"><Trash2 size={14} /></Button>
+        {!(type === "storage" && x.storage_type === "r2") && <Button variant="ghost" size="icon" onClick={() => remove(type, x.id)} className="text-destructive" aria-label="ลบ"><Trash2 size={14} /></Button>}
       </div>
     </div>
   );
@@ -144,10 +144,15 @@ export function ToolsStorage() {
           ) : (
             <>
               <input className="field" placeholder="ชื่อ Storage" value={storageForm.name} onChange={(e) => setStorageForm({ ...storageForm, name: e.target.value })} />
-              <input className="field" placeholder="Project URL" value={storageForm.projectUrl} onChange={(e) => setStorageForm({ ...storageForm, projectUrl: e.target.value })} />
+              <select className="field" aria-label="ชนิด Storage" value={storageForm.storageType} onChange={e => setStorageForm({ ...storageForm, storageType: e.target.value, accessKeyId: "", secretAccessKey: "", serviceRoleKey: "" })}><option value="supabase">Lovable Cloud / External Storage</option><option value="r2">Cloudflare R2</option></select>
+              {storageForm.storageType === "r2" ? <>
+                <input className="field md:col-span-2" aria-label="R2 Account ID" placeholder="R2 Account ID" value={storageForm.accountId} onChange={e => setStorageForm({ ...storageForm, accountId: e.target.value })} />
+                <input className="field" type="password" autoComplete="off" aria-label="R2 Access Key ID" placeholder="Access Key ID" value={storageForm.accessKeyId} onChange={e => setStorageForm({ ...storageForm, accessKeyId: e.target.value })} />
+                <input className="field" type="password" autoComplete="new-password" aria-label="R2 Secret Access Key" placeholder="Secret Access Key" value={storageForm.secretAccessKey} onChange={e => setStorageForm({ ...storageForm, secretAccessKey: e.target.value })} />
+                {/^[a-f0-9]{32}$/i.test(storageForm.accountId) && <p className="break-all text-xs text-muted-foreground md:col-span-2">https://{storageForm.accountId.toLowerCase()}.r2.cloudflarestorage.com</p>}
+              </> : <input className="field" placeholder="Project URL" value={storageForm.projectUrl} onChange={(e) => setStorageForm({ ...storageForm, projectUrl: e.target.value })} />}
               <input className="field md:col-span-2" aria-label="ชื่อ bucket" placeholder="ชื่อ bucket" value={storageForm.bucketName} onChange={(e) => setStorageForm({ ...storageForm, bucketName: e.target.value })} />
-              <input className="field md:col-span-2" type="password" placeholder={editing ? "คีย์ใหม่ (เว้นว่าง = ใช้คีย์เดิม)" : "Service role key (เก็บเข้ารหัส)"} value={storageForm.serviceRoleKey} onChange={(e) => setStorageForm({ ...storageForm, serviceRoleKey: e.target.value })} />
-              <p className="text-xs text-warning md:col-span-2">Service role key มีสิทธิ์สูงมาก เก็บเฉพาะกรณีจำเป็นและอย่าเปิดเผย</p>
+              {storageForm.storageType !== "r2" && <input className="field md:col-span-2" type="password" placeholder={editing ? "คีย์ใหม่ (เว้นว่าง = ใช้คีย์เดิม)" : "Service role key (เก็บเข้ารหัส)"} value={storageForm.serviceRoleKey} onChange={(e) => setStorageForm({ ...storageForm, serviceRoleKey: e.target.value })} />}
             </>
           )}
           <Button onClick={save} disabled={saving} className="bg-success text-success-foreground md:col-span-2">{saving ? "กำลังบันทึก..." : "บันทึก"}</Button>
@@ -156,7 +161,7 @@ export function ToolsStorage() {
       <div className="space-y-2">
         {tab === "tools"
           ? items.tools.length === 0 ? <div className="py-8 text-center text-xs text-muted-foreground">ยังไม่มีเครื่องมือที่เชื่อมต่อ</div> : items.tools.map((t) => row(t, "tool", t.base_url))
-          : items.storages.length === 0 ? <div className="py-8 text-center text-xs text-muted-foreground">ยังไม่มีฐานข้อมูลภายนอก</div> : items.storages.map((s) => row(s, "storage", s.project_url))}
+          : items.storages.length === 0 ? <div className="py-8 text-center text-xs text-muted-foreground">ยังไม่มีพื้นที่จัดเก็บภายนอก</div> : items.storages.map((s) => row(s, "storage", `${s.storage_type === "r2" ? "R2 · " : ""}${s.project_url}`))}
       </div>
       {tab === "storage" && <section className="space-y-3 border-t border-border pt-4">
         <h2 className="text-sm font-semibold">Safety Snapshot</h2>

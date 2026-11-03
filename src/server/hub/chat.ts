@@ -2,7 +2,7 @@
 import { validateToolPayload, type ToolCallResult } from "./tool-connection";
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
-export type ChatTool = { id: string; name: string; description?: string | null; sample_request?: unknown; base_url: string; auth_header_type?: string | null; custom_header_name?: string | null };
+export type ChatTool = { id: string; name: string; kind?: "r2"; storageId?: string; description?: string | null; sample_request?: unknown; base_url: string; auth_header_type?: string | null; custom_header_name?: string | null };
 export type ModelCall = { router: { provider: any; model: any }; result: { text: string; promptTokens: number; completionTokens: number; cost: number; isEstimated: boolean }; tried: string[] };
 
 export type ChatDeps = {
@@ -43,7 +43,7 @@ export async function runChat(message: string, history: ChatTurn[], tools: ChatT
   const decision = parseToolDecision(first.result.text);
   const tool = decision ? tools.find((t) => t.id === decision.tool || t.name === decision.tool) : undefined;
   if (!decision || !tool) {
-    await deps.log("CHAT_REPLY", `ตอบแชท: ${message.slice(0, 60)}`, { fallbackFrom: first.tried }, first.router.model.model_id);
+    await deps.log("CHAT_REPLY", "ตอบแชท", { fallbackFrom: first.tried }, first.router.model.model_id);
     return { reply: first.result.text, model: first.router.model.display_name, fallbackFrom: first.tried, toolExecution: null };
   }
 
@@ -52,9 +52,11 @@ export async function runChat(message: string, history: ChatTurn[], tools: ChatT
     validateToolPayload(decision.payload, tool.sample_request);
     call = await deps.runTool(tool, decision.payload);
   } catch (e: any) {
-    call = { success: false, status: null, latency: 0, body: "", error: e?.message || String(e) } as ToolCallResult;
+    call = { success: false, status: null, latency: 0, body: "", error: tool.kind === "r2" ? "R2 operation failed or rejected" : e?.message || String(e) } as ToolCallResult;
   }
-  const exec: ChatToolExecution = { toolId: tool.id, toolName: tool.name, payload: decision.payload, success: call.success, httpStatus: call.status, latencyMs: call.latency, body: call.body, error: call.error ?? null };
+  // R2 write payloads can contain whole files; don't echo them in the execution card.
+  const safePayload = tool.kind === "r2" ? { storageId: tool.storageId, operation: decision.payload && typeof decision.payload === "object" && "operation" in decision.payload ? decision.payload.operation : "rejected" } : decision.payload;
+  const exec: ChatToolExecution = { toolId: tool.id, toolName: tool.name, payload: safePayload, success: call.success, httpStatus: call.status, latencyMs: call.latency, body: call.body, error: call.error ?? null };
   await deps.log("CHAT_TOOL_CALL", `แชทเรียก ${tool.name} → ${call.status === null ? call.error : `HTTP ${call.status}`}`, { httpStatus: call.status, latencyMs: call.latency, success: call.success }, first.router.model.model_id);
 
   const followUp = `${transcript(history, message)}\nผลการเรียกเครื่องมือ ${tool.name}: ${call.success ? "สำเร็จ" : "ล้มเหลว"} HTTP ${call.status ?? "-"}\n${(call.body || call.error || "").slice(0, 4000)}\nสรุปผลให้ผู้ใช้เป็นข้อความปกติ (ห้ามตอบเป็น JSON)`;
