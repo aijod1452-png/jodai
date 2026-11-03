@@ -1,4 +1,11 @@
 # Tools + Storage
+## R14–R18 — R2 integration
+- [ ] R14 encrypted R2 connections, additive schema and provider form.
+- [ ] R15 read-only signed bucket probe and safe errors.
+- [ ] R16 adapter snapshots with sensitive field exclusions.
+- [ ] R17 backend-only AI list/read/write with path/type/size checks.
+- [ ] R18 simulated API integration/regression tests and metadata-only audit.
+- [ ] Live R2 and authenticated UI checks — requires R2 credentials and an unlocked PIN session; no delete or signed downloads.
 ## R12 — Complete PWA
 - [x] Generated worker, strict cache exclusions, Thai offline fallback and guarded registration.
 - [x] Install/connectivity hook and Settings install card; browser event behavior tested in unit tests.

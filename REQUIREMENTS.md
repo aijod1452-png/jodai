@@ -26,3 +26,11 @@
 
 - R12 build fix: the closeBundle hook in vite.config.ts checks existsSync before reading dist/client/sw.js so SSR/multi-pass builds never fail with ENOENT.
 - R13 Chat-First Direct Engine: chat-service (action "send") in src/server/hub/services.ts loads enabled Tools and calls models directly through callWithFallback without the DB queue. When the AI decides to call a Tool, executeToolCall runs in memory immediately, with logActivity and usage_records written. src/hub/pages/Home.tsx becomes a full Chat-First page with live conversation, clear Tool Execution status and Quick Prompts. Unit tests in src/test/chat-service.test.ts; build and all tests must pass.
+
+## R14–R18 Storage providers (approved 2026-11-03)
+
+- R14 Storage types: support Supabase and Cloudflare R2. R2 accepts Account ID, bucket, Access Key ID and Secret Access Key; derive the endpoint automatically. Store credentials encrypted server-side and never return them to UI or AI.
+- R15 Real R2 probe: verify the configured bucket with a read-only authenticated request and report actual results/errors. Never create, upload or delete files as a probe side effect.
+- R16 Snapshot adapter: Safety Snapshot supports Supabase or R2 through an adapter, retaining the table allowlist and excluding secrets and session data. Report path, byte size and row count.
+- R17 AI R2 access: AI may list/read/write only inside the configured bucket through the backend. No delete, no arbitrary endpoint URLs; validate paths, content types and sizes. Never include credentials in prompts.
+- R18 Safe audit and verification: record actual call results and necessary metadata, never credentials or file contents. Run unit/integration tests with simulated APIs; separately verify live R2 after the user supplies credentials. Cover signing/auth/errors, encrypted/masked credentials, existing Supabase compatibility, snapshots to both targets, AI list/read/write and rejection of delete/out-of-bucket URLs. Report code written, checks passed, live verification and blockers separately. R10 signed download URLs are excluded.
