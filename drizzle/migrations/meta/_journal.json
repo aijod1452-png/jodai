@@ -15,6 +15,13 @@
       "when": 1792804410115,
       "tag": "0001_external_storage_bucket",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793682405856,
+      "tag": "0002_r2_storage_provider",
+      "breakpoints": true
     }
   ]
 }
