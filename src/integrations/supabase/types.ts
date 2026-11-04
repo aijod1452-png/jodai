@@ -460,6 +460,7 @@ export type Database = {
           created_at: string
           id: string
           is_enabled: boolean
+          last_test_latency_ms: number | null
           last_test_result: string | null
           last_tested_at: string | null
           name: string
@@ -473,6 +474,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_enabled?: boolean
+          last_test_latency_ms?: number | null
           last_test_result?: string | null
           last_tested_at?: string | null
           name: string
@@ -486,6 +488,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_enabled?: boolean
+          last_test_latency_ms?: number | null
           last_test_result?: string | null
           last_tested_at?: string | null
           name?: string
