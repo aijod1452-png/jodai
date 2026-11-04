@@ -36,7 +36,7 @@ export function isTimeSensitive(text: string): boolean {
 /** R20: "/cmd rest" → { command, input }. */
 export function parseSnippet(text: string): { command: string; input: string } | null {
   const m = text.match(/^\/([a-z0-9_-]{1,32})(?:\s+([\s\S]*))?$/i);
-  return m ? { command: m[1].toLowerCase(), input: (m[2] || "").trim() } : null;
+  return m ? { command: m[1]!.toLowerCase(), input: (m[2] || "").trim() } : null;
 }
 
 export function applySnippet(snippet: Snippet, input: string): { message: string; system: string } {
@@ -46,7 +46,7 @@ export function applySnippet(snippet: Snippet, input: string): { message: string
 /** R21: "จำไว้ว่า ..." / "remember: ..." → fact to store. */
 export function parseMemoryCommand(text: string): string | null {
   const m = text.trim().match(/^(?:จำไว้ว่า|ช่วยจำว่า|จำไว้|remember(?:\s+that)?\s*:?)\s*([\s\S]+)$/i);
-  const fact = m?.[1].trim();
+  const fact = m?.[1]?.trim();
   return fact && fact.length <= 1000 ? fact : null;
 }
 
