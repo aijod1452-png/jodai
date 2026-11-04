@@ -76,7 +76,7 @@ describe("R20 snippets", () => {
     const store = memStore(), d = deps([reply("ok")]);
     const r = await runChatPipeline({ message: `/${cmd} hello`, history: [], conversationId: null }, [], store, d);
     expect(r.snippet).toBe(cmd);
-    const [prompt, system] = d.callModel.mock.calls[0];
+    const [prompt, system] = d.callModel.mock.calls[0]!;
     expect(prompt).toContain("hello");
     expect(prompt).not.toContain(`/${cmd}`);
     expect(system).toContain((await store.getSnippet(cmd))!.system_instruction);
@@ -84,7 +84,7 @@ describe("R20 snippets", () => {
   it("unknown slash command is sent as typed", async () => {
     const d = deps([reply("ok")]);
     await runChatPipeline({ message: "/nope x", history: [], conversationId: null }, [], memStore(), d);
-    expect(d.callModel.mock.calls[0][0]).toContain("/nope x");
+    expect(d.callModel.mock.calls[0]![0]).toContain("/nope x");
     expect(parseSnippet("hello")).toBeNull();
   });
 });
@@ -101,7 +101,7 @@ describe("R21 user memory", () => {
     const store = memStore(); store.memories.push("ชื่อเล่นฉันคือบอม");
     const d = deps([reply("ok")]);
     await runChatPipeline({ message: "ฉันชื่ออะไร", history: [], conversationId: null }, [], store, d);
-    expect(d.callModel.mock.calls[0][1]).toContain("ชื่อเล่นฉันคือบอม");
+    expect(d.callModel.mock.calls[0]![1]).toContain("ชื่อเล่นฉันคือบอม");
     expect(parseMemoryCommand("ทั่วไป")).toBeNull();
   });
 });
@@ -113,7 +113,7 @@ describe("R22 rolling context compactor", () => {
     const r = await runChatPipeline({ message: "ต่อ", history: turns(12), conversationId: conv }, [], store, d);
     expect(r.compacted).toBe(true);
     expect(store.summaries.get(conv)).toEqual({ summary: "SUMMARY-A", turns_covered: 8 });
-    const [prompt, system] = d.callModel.mock.calls[1];
+    const [prompt, system] = d.callModel.mock.calls[1]!;
     expect(system).toContain("SUMMARY-A");
     expect(prompt).not.toContain("turn-7");
     expect(prompt).toContain("turn-8");
@@ -129,7 +129,7 @@ describe("R22 rolling context compactor", () => {
     const store = memStore(); store.summaries.set(conv, { summary: "OLD", turns_covered: 8 });
     const d = deps([reply("NEW"), reply("answer")]);
     await runChatPipeline({ message: "ต่อ", history: turns(14), conversationId: conv }, [], store, d);
-    const compactPrompt = d.callModel.mock.calls[0][0];
+    const compactPrompt = d.callModel.mock.calls[0]![0];
     expect(compactPrompt).toContain("OLD");
     expect(compactPrompt).toContain("turn-8");
     expect(compactPrompt).not.toContain("turn-7");
