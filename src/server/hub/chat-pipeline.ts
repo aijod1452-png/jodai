@@ -21,7 +21,7 @@ export type PipelineStore = {
   saveSummary: (conversationId: string, summary: string, turnsCovered: number) => Promise<void>;
 };
 
-export type PipelineResult = ChatResult & { cached?: boolean; memorySaved?: string; snippet?: string; compacted?: boolean };
+export type PipelineResult = ChatResult & { cached?: boolean; memorySaved?: string; snippet?: string | undefined; compacted?: boolean };
 
 export async function sha256(text: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
