@@ -1,0 +1,1 @@
+ALTER TABLE public.storage_connections ADD COLUMN IF NOT EXISTS last_test_latency_ms integer;
