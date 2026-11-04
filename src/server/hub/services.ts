@@ -640,13 +640,19 @@ const chatService: Handler = async ({ req, action, body, supabase }) => {
   const { data: settings } = await supabase.from("settings").select("master_pause").eq("id", "SYSTEM_CONFIG").maybeSingle();
   if (settings?.master_pause) return json({ error: "ระบบหยุดประมวลผลชั่วคราว (Master Pause)" }, 409);
   const { data: tools } = await supabase.from("tools").select("*, tool_secrets(api_key,encrypted_secret,encryption_iv)").eq("is_enabled", true);
-  const { runChat } = await import("./chat");
+  const { runChatPipeline } = await import("./chat-pipeline");
+  const { createPipelineStore } = await import("./pipeline-store");
   const { callWithFallback } = await import("./jobs");
+  const conversationId = typeof body.conversationId === "string" && /^[0-9a-f-]{36}$/i.test(body.conversationId) ? body.conversationId : null;
+  const fullHistory = (Array.isArray(body.history) ? body.history : [])
+    .filter((t: any) => (t?.role === "user" || t?.role === "assistant") && typeof t.content === "string")
+    .slice(-60);
   const { data: storages, error: storageError } = await supabase.from("storage_connections").select(STORAGE_PUBLIC_COLUMNS).eq("is_enabled", true).eq("storage_type", "r2");
   if (storageError) return json({ error: "อ่านการเชื่อมต่อ Storage ไม่สำเร็จ" }, 502);
   const origin = new URL(req.url).origin;
   try {
-    const result = await runChat(message, history, [...(tools || []), ...storageChatTools(storages || [])], {
+    void history;
+    const result = await runChatPipeline({ message, history: fullHistory, conversationId }, [...(tools || []), ...storageChatTools(storages || [])], createPipelineStore(supabase), {
       callModel: callWithFallback,
       runTool: async (tool: any, payload) => {
         if (tool.kind === "r2") {

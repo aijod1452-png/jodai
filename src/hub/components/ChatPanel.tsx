@@ -10,6 +10,8 @@ const QUICK_PROMPTS = [
   "ส่ง LINE หา Bomb ว่า ทดสอบระบบ JodAI",
   "ส่ง LINE หา XAUUSD ว่า แจ้งเตือนราคาทอง",
   "มีเครื่องมืออะไรให้ใช้บ้าง",
+  "/sum ",
+  "/fix ",
 ];
 
 function ToolCard({ t }: { t: ToolExec }) {
@@ -34,6 +36,7 @@ export function ChatPanel() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [conversationId] = useState(() => crypto.randomUUID());
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, busy]);
 
@@ -45,7 +48,7 @@ export function ChatPanel() {
     setInput("");
     setBusy(true);
     try {
-      const res = await ApiClient.request<{ reply: string; model: string; toolExecution: ToolExec | null }>("chat-service/send", { method: "POST", body: JSON.stringify({ message, history }) });
+      const res = await ApiClient.request<{ reply: string; model: string; toolExecution: ToolExec | null }>("chat-service/send", { method: "POST", body: JSON.stringify({ message, history, conversationId }) });
       setMessages((m) => [...m, { role: "assistant", content: res.reply, model: res.model, tool: res.toolExecution }]);
     } catch (e: any) {
       setMessages((m) => [...m, { role: "assistant", content: e.message, error: true }]);
