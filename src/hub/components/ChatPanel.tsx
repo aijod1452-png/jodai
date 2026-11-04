@@ -10,8 +10,6 @@ const QUICK_PROMPTS = [
   "ส่ง LINE หา Bomb ว่า ทดสอบระบบ JodAI",
   "ส่ง LINE หา XAUUSD ว่า แจ้งเตือนราคาทอง",
   "มีเครื่องมืออะไรให้ใช้บ้าง",
-  "/sum ",
-  "/fix ",
 ];
 
 function ToolCard({ t }: { t: ToolExec }) {
