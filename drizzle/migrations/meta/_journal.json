@@ -29,6 +29,13 @@
       "when": 1793814474919,
       "tag": "0003_add_storage_latency_column",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793815435486,
+      "tag": "0004_r19_r22_chat_performance",
+      "breakpoints": true
     }
   ]
 }

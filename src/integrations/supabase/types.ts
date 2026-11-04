@@ -62,6 +62,36 @@ export type Database = {
           },
         ]
       }
+      ai_snippets: {
+        Row: {
+          command: string
+          created_at: string
+          id: string
+          is_enabled: boolean
+          label: string
+          system_instruction: string
+          template: string
+        }
+        Insert: {
+          command: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          label: string
+          system_instruction?: string
+          template: string
+        }
+        Update: {
+          command?: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          label?: string
+          system_instruction?: string
+          template?: string
+        }
+        Relationships: []
+      }
       api_tokens: {
         Row: {
           created_at: string
@@ -89,6 +119,27 @@ export type Database = {
           name?: string
           token_hash?: string
           token_prefix?: string
+        }
+        Relationships: []
+      }
+      chat_summaries: {
+        Row: {
+          conversation_id: string
+          summary: string
+          turns_covered: number
+          updated_at: string
+        }
+        Insert: {
+          conversation_id: string
+          summary: string
+          turns_covered?: number
+          updated_at?: string
+        }
+        Update: {
+          conversation_id?: string
+          summary?: string
+          turns_covered?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -187,6 +238,45 @@ export type Database = {
           reference_id?: string | null
           title?: string
           type?: string
+        }
+        Relationships: []
+      }
+      prompt_cache: {
+        Row: {
+          cost_saved: number
+          created_at: string
+          expires_at: string
+          hit_count: number
+          id: string
+          model_display_name: string
+          model_id: string
+          original_cost: number
+          prompt_hash: string
+          response: string
+        }
+        Insert: {
+          cost_saved?: number
+          created_at?: string
+          expires_at?: string
+          hit_count?: number
+          id?: string
+          model_display_name?: string
+          model_id: string
+          original_cost?: number
+          prompt_hash: string
+          response: string
+        }
+        Update: {
+          cost_saved?: number
+          created_at?: string
+          expires_at?: string
+          hit_count?: number
+          id?: string
+          model_display_name?: string
+          model_id?: string
+          original_cost?: number
+          prompt_hash?: string
+          response?: string
         }
         Relationships: []
       }
@@ -799,6 +889,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_memories: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_enabled: boolean
+          source: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          source?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          source?: string
+        }
+        Relationships: []
       }
     }
     Views: {
