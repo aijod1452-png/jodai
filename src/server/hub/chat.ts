@@ -36,8 +36,8 @@ export function parseToolDecision(text: string): { tool: string; payload: unknow
 const transcript = (history: ChatTurn[], message: string) =>
   [...history.slice(-10).map((t) => `${t.role === "user" ? "ผู้ใช้" : "ผู้ช่วย"}: ${t.content.slice(0, 2000)}`), `ผู้ใช้: ${message}`].join("\n");
 
-export async function runChat(message: string, history: ChatTurn[], tools: ChatTool[], deps: ChatDeps): Promise<ChatResult> {
-  const system = buildSystemPrompt(tools);
+export async function runChat(message: string, history: ChatTurn[], tools: ChatTool[], deps: ChatDeps, systemExtra = ""): Promise<ChatResult> {
+  const system = systemExtra ? `${buildSystemPrompt(tools)}\n\n${systemExtra}` : buildSystemPrompt(tools);
   const first = await deps.callModel(transcript(history, message), system);
   await deps.recordUsage(first);
   const decision = parseToolDecision(first.result.text);
