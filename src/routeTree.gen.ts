@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicHubSplatRouteImport } from './routes/api/public/hub/$'
 import { Route as ApiPublicJobsTickRouteImport } from './routes/api/public/jobs/tick'
+import { Route as ApiPublicV1ChatCompletionsRouteImport } from './routes/api/public/v1/chat/completions'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +29,58 @@ const ApiPublicJobsTickRoute = ApiPublicJobsTickRouteImport.update({
   path: '/api/public/jobs/tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicV1ChatCompletionsRoute =
+  ApiPublicV1ChatCompletionsRouteImport.update({
+    id: '/api/public/v1/chat/completions',
+    path: '/api/public/v1/chat/completions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/public/hub/$': typeof ApiPublicHubSplatRoute
   '/api/public/jobs/tick': typeof ApiPublicJobsTickRoute
+  '/api/public/v1/chat/completions': typeof ApiPublicV1ChatCompletionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/public/hub/$': typeof ApiPublicHubSplatRoute
   '/api/public/jobs/tick': typeof ApiPublicJobsTickRoute
+  '/api/public/v1/chat/completions': typeof ApiPublicV1ChatCompletionsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/public/hub/$': typeof ApiPublicHubSplatRoute
   '/api/public/jobs/tick': typeof ApiPublicJobsTickRoute
+  '/api/public/v1/chat/completions': typeof ApiPublicV1ChatCompletionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/public/hub/$' | '/api/public/jobs/tick'
+  fullPaths:
+    | '/'
+    | '/api/public/hub/$'
+    | '/api/public/jobs/tick'
+    | '/api/public/v1/chat/completions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/hub/$' | '/api/public/jobs/tick'
-  id: '__root__' | '/' | '/api/public/hub/$' | '/api/public/jobs/tick'
+  to:
+    | '/'
+    | '/api/public/hub/$'
+    | '/api/public/jobs/tick'
+    | '/api/public/v1/chat/completions'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/public/hub/$'
+    | '/api/public/jobs/tick'
+    | '/api/public/v1/chat/completions'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiPublicHubSplatRoute: typeof ApiPublicHubSplatRoute
   ApiPublicJobsTickRoute: typeof ApiPublicJobsTickRoute
+  ApiPublicV1ChatCompletionsRoute: typeof ApiPublicV1ChatCompletionsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +106,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/v1/chat/completions': {
+      id: '/api/public/v1/chat/completions'
+      path: '/api/public/v1/chat/completions'
+      fullPath: '/api/public/v1/chat/completions'
+      preLoaderRoute: typeof ApiPublicV1ChatCompletionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +120,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiPublicHubSplatRoute: ApiPublicHubSplatRoute,
   ApiPublicJobsTickRoute: ApiPublicJobsTickRoute,
+  ApiPublicV1ChatCompletionsRoute: ApiPublicV1ChatCompletionsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

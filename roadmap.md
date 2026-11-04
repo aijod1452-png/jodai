@@ -41,3 +41,9 @@
 - [x] chat-service/send direct engine + in-memory tool run + usage/activity logging.
 - [x] Chat-first Home with tool status and quick prompts; chat-service tests.
 - [ ] Live chat with real models/tools — needs the user's PIN session and provider keys.
+
+# R19–R23 Phase 4 (approved 2026-11-04)
+- [x] Tables prompt_cache, ai_snippets (seeded /line /sum /fix), user_memories, chat_summaries.
+- [x] Chat pipeline: memory capture, snippets, compaction, exact cache; wired into chat-service/send.
+- [x] /api/public/v1/chat/completions (Bearer api_tokens, JSON + SSE); 19 tests.
+- [ ] Live chat/gateway check with real models — needs PIN session, provider keys and an API token.

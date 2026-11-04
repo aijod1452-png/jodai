@@ -34,3 +34,11 @@
 - R16 Snapshot adapter: Safety Snapshot supports Supabase or R2 through an adapter, retaining the table allowlist and excluding secrets and session data. Report path, byte size and row count.
 - R17 AI R2 access: AI may list/read/write only inside the configured bucket through the backend. No delete, no arbitrary endpoint URLs; validate paths, content types and sizes. Never include credentials in prompts.
 - R18 Safe audit and verification: record actual call results and necessary metadata, never credentials or file contents. Run unit/integration tests with simulated APIs; separately verify live R2 after the user supplies credentials. Cover signing/auth/errors, encrypted/masked credentials, existing Supabase compatibility, snapshots to both targets, AI list/read/write and rejection of delete/out-of-bucket URLs. Report code written, checks passed, live verification and blockers separately. R10 signed download URLs are excluded.
+
+## Phase 4: Performance, Shortcuts, Context, Memory & External Gateway (approved 2026-11-04)
+
+- R19 Exact Prompt Cache: prompt_cache table stores the SHA-256 hash of prompt + model_id, response, hit_count, cost_saved and expires_at (24 h). chat-service checks the cache before calling a model; on a match with no live-run condition (skip for Tool Calls and time-related prompts) it replies immediately (<30 ms) with no credit use, recording hit_count and cost_saved.
+- R20 Quick Action Snippets: ai_snippets table with defaults /line (send LINE), /sum (summarize), /fix (debug). A leading / in chat is converted into a Template and System Instruction before sending to the model.
+- R21 Adaptive User Memory: user_memories table. Commands such as "จำไว้ว่า..." or "remember:" are saved to the DB, and enabled memories are injected into the System Prompt automatically.
+- R22 Rolling Context Compactor: chat_summaries table. When a conversation exceeds 10 turns, older history is compressed into a running summary sent together with the latest 4 turns.
+- R23 OpenAI-Compatible Remote Gateway: /api/public/v1/chat/completions authenticated with a Bearer token from api_tokens; converts the standard OpenAI payload into callWithFallback and returns OpenAI wire format so Cursor, Shortcuts or Obsidian can call JodAI Hub directly.
