@@ -63,7 +63,7 @@ export function maskSensitiveData(text: string, secrets: string[] = []): string 
 }
 export function squeezePrompt(text: string): string {
   // Entire structured inputs and fenced/indented code are preserved byte-for-byte.
-  if (/^\s*[\[{]/.test(text)) return text;
+  if (/^\s*[\[{]/.test(text) || /```|~~~|^(?: {2,}|\t)/m.test(text)) return text;
   let fence = false;
   return text.split(/\r?\n/).map(line => {
     if (/^\s*(```|~~~)/.test(line)) { fence = !fence; return line; }

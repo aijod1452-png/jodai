@@ -109,7 +109,7 @@ describe("R26 tier routing", () => {
   it.each(["a".repeat(501), "analyze this", "write code", "วางแผนงาน", "ส่ง LINE", "```js\nx\n```"])("complex prompts stay complex", prompt => expect(classifyPromptComplexity(prompt)).toBe("complex"));
   it("selects cheap eligible models for simple prompts, priority for complex, and releases cooldown", async () => {
     vi.stubEnv("AIH_MODEL_RPM_LIMIT", "");
-    const rows = [
+    const rows: Array<typeof model & { provider_id: string; capabilities: { text: boolean }; in_cooldown?: boolean; cooldown_until?: string }> = [
       { ...model, id: "expensive", model_id: "gpt-4o", priority: 1, provider_id: "p", capabilities: { text: true } },
       { ...model, id: "cheap", priority: 3, provider_id: "p", capabilities: { text: true } },
       { ...model, id: "cooled", priority: 0, provider_id: "p", capabilities: { text: true }, in_cooldown: true, cooldown_until: "2999-01-01" },
