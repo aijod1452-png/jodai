@@ -10,7 +10,7 @@ export type Snippet = { command: string; template: string; system_instruction: s
 export type CacheEntry = { response: string; model_display_name: string; original_cost: number };
 
 export type PipelineStore = {
-  currentModelId: () => Promise<string>;
+  currentModelId: (prompt?: string) => Promise<string>;
   getCache: (hash: string, modelId: string) => Promise<CacheEntry | null>;
   recordHit: (hash: string, modelId: string, costSaved: number) => Promise<void>;
   putCache: (hash: string, modelId: string, entry: CacheEntry, expiresAt: Date) => Promise<void>;
@@ -97,7 +97,8 @@ export async function runChatPipeline(
   const extra = [memoryBlock(await store.listMemories()), snippetSystem ? `คำสั่งเพิ่มเติม: ${snippetSystem}` : "", summary ? `สรุปบทสนทนาก่อนหน้า:\n${summary}` : ""].filter(Boolean).join("\n\n");
 
   const live = isTimeSensitive(message) || snippetName === "line";
-  const modelId = live ? "" : await store.currentModelId();
+  const selectionPrompt = [...recent.slice(-10).map(t => `${t.role === "user" ? "ผู้ใช้" : "ผู้ช่วย"}: ${t.content.slice(0, 2000)}`), `ผู้ใช้: ${message}`].join("\n");
+  const modelId = live ? "" : await store.currentModelId(selectionPrompt);
   const hash = live ? "" : await sha256(JSON.stringify({ system: buildSystemPrompt(tools), extra, history: recent, message }));
   if (!live) {
     const hit = await store.getCache(hash, modelId);
@@ -108,11 +109,11 @@ export async function runChatPipeline(
     }
   }
 
-  let cost = 0;
-  const trackingDeps: ChatDeps = { ...deps, recordUsage: async (c) => { cost += Number(c.result.cost) || 0; await deps.recordUsage(c); } };
+  let cost = 0, actualModelId = "";
+  const trackingDeps: ChatDeps = { ...deps, recordUsage: async (c) => { actualModelId = c.router.model.model_id; cost += Number(c.result.cost) || 0; await deps.recordUsage(c); } };
   const result = await runChat(message, recent, tools, trackingDeps, extra);
   // Only plain replies from the expected model are cached; tool calls always run live.
-  if (!live && !result.toolExecution && result.fallbackFrom.length === 0) {
+  if (!live && !result.toolExecution && result.fallbackFrom.length === 0 && actualModelId === modelId) {
     await store.putCache(hash, modelId, { response: result.reply, model_display_name: result.model, original_cost: cost }, new Date(Date.now() + CACHE_TTL_MS));
   }
   return { ...result, cached: false, snippet: snippetName, compacted };

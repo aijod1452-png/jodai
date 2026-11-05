@@ -1,9 +1,19 @@
 # Tools + Storage
 ## R24–R32 — Requested routing safeguards
-- [ ] Approve the R24–R32 requirements draft before updating REQUIREMENTS.md or changing routing behavior.
-- [ ] Implement approved policies in real model dispatch and add src/test/r24-r32.test.ts.
-- [ ] Verify policy integration and existing regression tests; live paid model calls require authorization.
+- [x] Approve the R24–R32 draft and append it without changing R1–R23.
+- [x] Implement approved policies in real model dispatch and add src/test/r24-r32.test.ts (60 tests).
+- [x] Verify simulated dispatch, routing, fallback, cache identity, remote error statuses and regression suite: bunx vitest run — 194/194 passed; automatic build OK (2026-11-05 01:03:14 UTC).
+- [ ] R24 — Implemented, unverified live: priority/20-sample latency checks pass; real model traffic requires authorized live requests.
+- [ ] R25 — Implemented, unverified live: cooldown/fallback/expiry and terminal denial checks pass; live model failures not exercised.
+- [ ] R26 — Implemented, unverified live: Thai/English heuristics and cheap/complex selection checks pass; real answer-quality comparison not performed.
+- [ ] R27 — Implemented, unverified: cap boundaries, UTC spend and fail-closed dispatch pass in simulated tests; no daily cap chosen.
+- [ ] R28 — Implemented, unverified live: all six statuses, timeout/cancel distinction and gateway pause/backoff checks pass; real provider/gateway failures not exercised.
+- [ ] R29 — Implemented, unverified live: key-pool parsing, auth-header selection, exhaustion and terminal-denial checks pass; real multi-key connection not exercised.
+- [ ] R30 — Implemented, unverified live: outbound user/system masking and unchanged originals/auth checks pass; no live external dispatch inspected.
+- [ ] R31 — Implemented, unverified live: whitespace/idempotence and code/JSON preservation pass; no live external dispatch inspected.
+- [ ] R32 — Implemented, unverified: rolling-window, synchronous admissions, retry counting and rejection checks pass; no RPM chosen, process-local only.
 - Daily budget and per-model RPM values remain unconfigured by user choice.
+- Server configuration inputs are AIH_DAILY_BUDGET_USD (recorded USD costs) and AIH_MODEL_RPM_LIMIT (per model); neither has been provisioned. No schema/UI/deployment changes or paid calls. Formatting protection conservatively skips squeezing any input containing code/indented blocks.
 
 ## R14–R18 — R2 integration
 - [x] R14 code: encrypted R2 connections, additive schema confirmed in database, generated types and provider form.

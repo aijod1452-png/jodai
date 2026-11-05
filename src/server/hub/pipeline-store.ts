@@ -4,7 +4,7 @@ import { pickBestModel } from "./router-core";
 
 export function createPipelineStore(supabase: any): PipelineStore {
   return {
-    currentModelId: async () => (await pickBestModel("text", [])).model.model_id,
+    currentModelId: async (prompt) => (await pickBestModel("text", [], prompt)).model.model_id,
     getCache: async (hash, modelId) => {
       const { data } = await supabase.from("prompt_cache").select("response,model_display_name,original_cost,expires_at")
         .eq("prompt_hash", hash).eq("model_id", modelId).gt("expires_at", new Date().toISOString()).maybeSingle();

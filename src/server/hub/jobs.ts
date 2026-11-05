@@ -1,21 +1,43 @@
 // Background jobs: task-worker and scheduler-runner (ported from supabase/functions).
 import { getServiceClient, logActivity, nextCronRun, decryptSecret } from "./core";
-import { pickBestModel, callAIModel, putModelInCooldown, isFallbackError } from "./router-core";
+import { pickBestModel, callAIModel, putModelInCooldown, isExpandedFallbackError, AIHttpError, RoutingGuardError, fallbackDelayMs } from "./router-core";
+import { isLovableGateway } from "./routing-policy";
 import { executeToolCall, buildStepToolPayload } from "./tool-connection";
 import { getRequestUrl } from "@tanstack/react-start/server";
 
-/** R2: try models in fallback order inside the same step; 402/429 → cooldown and continue. */
-export async function callWithFallback(prompt: string, systemPrompt?: string) {
+export type FallbackDeps = {
+  pick: typeof pickBestModel; call: typeof callAIModel; cooldown: typeof putModelInCooldown;
+  wait: (ms: number) => Promise<void>;
+};
+/** R25/R28 expand ordinary provider fallback; managed gateway denials remain terminal. */
+export async function callWithFallback(prompt: string, systemPrompt?: string, deps: FallbackDeps = {
+  pick: pickBestModel, call: callAIModel, cooldown: putModelInCooldown,
+  wait: ms => new Promise(resolve => setTimeout(resolve, ms)),
+}) {
   const tried: string[] = [];
   for (;;) {
-    const router = await pickBestModel("text", tried);
+    const router = await deps.pick("text", tried, prompt);
+    if (tried.includes(router.model.id)) throw new Error("No untried model remains");
     try {
-      const result = await callAIModel(router.provider, router.model, router.apiKey, prompt, systemPrompt);
+      const result = await deps.call(router.provider, router.model, router.apiKey, prompt, systemPrompt);
       return { router, result, tried };
     } catch (err: any) {
-      if (!isFallbackError(err)) { (err as any).modelId = router.model.id; throw err; }
+      if (err instanceof RoutingGuardError) {
+        if (err.reason !== "throttled") throw err;
+        tried.push(router.model.id);
+        continue;
+      }
+      const gateway = isLovableGateway(router.provider.base_url);
+      if (!isExpandedFallbackError(err) || (gateway && err instanceof AIHttpError && [402, 403, 408].includes(err.status))) {
+        if (err instanceof Error) Object.assign(err, { modelId: router.model.id });
+        throw err;
+      }
       tried.push(router.model.id);
-      await putModelInCooldown(router.model.id, err.message);
+      await deps.cooldown(router.model.id, err instanceof AIHttpError ? `HTTP ${err.status}` : "TIMEOUT");
+      if (gateway && err instanceof AIHttpError) {
+        if (tried.length >= 3 || err.retryAfterMs > 8000) throw err;
+        await deps.wait(fallbackDelayMs(err, tried.length - 1));
+      }
     }
   }
 }
