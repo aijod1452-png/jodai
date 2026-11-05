@@ -13,7 +13,7 @@
 - Encrypt new connection secrets with the preferred configured source; decrypt with both current and historical sources without downgrading corrupted encrypted records to plaintext, preserving compatibility without exposing credentials.
 - Keep tool endpoint URL/header/sample validation, private-address blocking and safe probes in the server-only tool-connection module so save and test share one rule set.
 - REQUIREMENTS.md holds user-approved R-IDs; never edit it without user approval (workspace rule).
-- Model calls in jobs go through callWithFallback (402/429 → cooldown, next model in same step) so fallback behavior lives in one place.
+- Model calls go through callWithFallback and router-core dispatch; routing-policy owns pure safeguards and process-local latency/RPM state so chat, compaction, queue and gateway share terminal-denial, budget, key-pool, masking and fallback rules. Budget/RPM are optional server configuration, not distributed guarantees.
 - Safety snapshots use storage-connection.ts with its table allowlist and recursive sensitive-field exclusion; all providers share the same export rules to keep credentials and session data out of backups.
 - R2 signing, fixed account/bucket endpoints and bounded text operations live in r2-storage.ts; storage-service.ts owns encrypted connection lifecycle, safe projections and metadata-only audit so UI and chat share one server-only security boundary.
 - Resolve relative tool endpoints against the current server request origin in the tool-connection module, and relay successful previous-step outputs as structured payload context, so scheduled and immediate executions use the same rules.
