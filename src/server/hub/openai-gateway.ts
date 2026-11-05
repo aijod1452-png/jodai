@@ -41,7 +41,11 @@ export async function handleChatCompletions(req: Request, deps: GatewayDeps): Pr
 
   let call;
   try { call = await deps.callModel(prompt, system || undefined); }
-  catch { return err(502, "No model available or upstream model failed", "upstream_error"); }
+  catch (failure) {
+    const status = failure && typeof failure === "object" && "status" in failure && typeof failure.status === "number" ? failure.status : 502;
+    const message = failure instanceof Error && /^(Daily AI budget reached|Model RPM limit reached|AI dispatch is paused|Model refused the request|Model request failed \(HTTP \d+\))$/.test(failure.message) ? failure.message : "No model available or upstream model failed";
+    return err(status, message, "upstream_error");
+  }
   await deps.recordUsage(call);
 
   const id = `chatcmpl-${(deps.id ?? (() => crypto.randomUUID()))()}`;
