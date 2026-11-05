@@ -1,4 +1,10 @@
 # Tools + Storage
+## R24–R32 — Requested routing safeguards
+- [ ] Approve the R24–R32 requirements draft before updating REQUIREMENTS.md or changing routing behavior.
+- [ ] Implement approved policies in real model dispatch and add src/test/r24-r32.test.ts.
+- [ ] Verify policy integration and existing regression tests; live paid model calls require authorization.
+- Daily budget and per-model RPM values remain unconfigured by user choice.
+
 ## R14–R18 — R2 integration
 - [x] R14 code: encrypted R2 connections, additive schema confirmed in database, generated types and provider form.
 - [x] R15 code: read-only signed HEAD bucket probe and safe errors; independently verified SigV4 in simulated API test.
