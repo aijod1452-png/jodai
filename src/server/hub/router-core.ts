@@ -71,8 +71,12 @@ export async function pickBestModel(requiredCapability: "text" | "image" | "tool
     .or(`in_cooldown.eq.false,cooldown_until.lt.${nowIso}`).order("priority", { ascending: true });
   if (mErr || !models || models.length === 0) throw new Error("ไม่มีโมเดล AI ที่พร้อมใช้งาน (โมเดลทั้งหมดปิดอยู่หรือติด Cooldown)");
   const limit = configuredLimit(process.env["AIH_MODEL_RPM_LIMIT"], true);
-  const matchingModels = models.filter((m: any) => (m.capabilities || {})[requiredCapability] === true && !excludeIds.includes(m.id) && (!m.in_cooldown || (m.cooldown_until && m.cooldown_until < nowIso)) && rpm.available(m.id, limit));
-  if (matchingModels.length === 0) throw new Error(excludeIds.length ? `ไม่มีโมเดลสำรองเหลือแล้ว (ลองไป ${excludeIds.length} ตัว)` : `ไม่พบโมเดลที่รองรับความสามารถ '${requiredCapability}' (ระบบไม่นับค่า unknown เป็น supported)`);
+  const eligibleModels = models.filter((m: any) => m.is_enabled !== false && enabledProviderIds.includes(m.provider_id) && (m.capabilities || {})[requiredCapability] === true && !excludeIds.includes(m.id) && (!m.in_cooldown || (m.cooldown_until && m.cooldown_until < nowIso)));
+  const matchingModels = eligibleModels.filter((m: any) => rpm.available(m.id, limit));
+  if (matchingModels.length === 0) {
+    if (eligibleModels.length) throw new RoutingGuardError(429, "Model RPM limit reached", "throttled");
+    throw new Error(excludeIds.length ? `ไม่มีโมเดลสำรองเหลือแล้ว (ลองไป ${excludeIds.length} ตัว)` : `ไม่พบโมเดลที่รองรับความสามารถ '${requiredCapability}' (ระบบไม่นับค่า unknown เป็น supported)`);
+  }
 
   const { data: routerState } = await supabase.from("router_state").select("*").eq("id", "GLOBAL_ROUTER").maybeSingle();
   const fallbackIds: string[] = Array.isArray(routerState?.fallback_order) ? routerState.fallback_order : [];
@@ -89,10 +93,11 @@ export async function pickBestModel(requiredCapability: "text" | "image" | "tool
   const selectedModel = ranked[0];
   if (!selectedModel) throw new RoutingGuardError(429, "No eligible model available (cooldown or RPM)", "throttled");
   const provider = providers.find((p: any) => p.id === selectedModel.provider_id);
+  if (!provider) throw new Error("Selected model provider is unavailable");
   const secretRecord = Array.isArray(provider?.provider_secrets) ? provider.provider_secrets[0] : provider?.provider_secrets;
   const apiKey = await decryptSecret(secretRecord?.encrypted_secret || null, secretRecord?.encryption_iv || null, secretRecord?.api_key || null);
 
-  let reason = `เลือกตาม Priority (${selectedModel.priority}) และรองรับความสามารถ '${requiredCapability}'`;
+  let reason = `เลือกตาม ${classifyPromptComplexity(prompt) === "simple" ? "ต้นทุนและ" : ""} Priority (${selectedModel.priority}) / latency (${Math.round(latencies.mean(selectedModel.id))}ms) และรองรับ '${requiredCapability}'`;
   if (fallbackIds.length > 0 && fallbackIds[0] !== selectedModel.id) {
     reason = `Fallback: สลับมาใช้ ${selectedModel.display_name} (${selectedModel.model_id}) อัตโนมัติ`;
     await supabase.from("router_state").update({ last_fallback_event: nowIso, last_fallback_reason: reason }).eq("id", "GLOBAL_ROUTER");
