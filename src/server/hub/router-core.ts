@@ -1,4 +1,5 @@
 import { getServiceClient, logActivity, decryptSecret } from "./core";
+import { healthRank } from "./model-observability";
 import { ModelRpmThrottler, RollingModelLatency, rankModelsByLatency, classifyPromptComplexity, isBudgetExceeded, utcDayWindow, parseApiKeys, maskSensitiveData, squeezePrompt, configuredLimit, isLovableGateway } from "./routing-policy";
 export { ModelRpmThrottler, RollingModelLatency, rankModelsByLatency, classifyPromptComplexity, isBudgetExceeded, parseApiKeys, maskSensitiveData, squeezePrompt } from "./routing-policy";
 const latencies = new RollingModelLatency();
@@ -65,7 +66,9 @@ export async function pickBestModel(requiredCapability: "text" | "image" | "tool
   await supabase.from("models").update({ in_cooldown: false, cooldown_until: null }).eq("in_cooldown", true).lt("cooldown_until", nowIso);
   const { data: providers, error: pErr } = await supabase.from("providers").select("*, provider_secrets(api_key,encrypted_secret,encryption_iv)").eq("is_enabled", true);
   if (pErr || !providers || providers.length === 0) throw new Error("ไม่มีผู้ให้บริการ AI (Provider) ที่เปิดใช้งานอยู่ในระบบ");
-  const enabledProviderIds = providers.map((p: any) => p.id);
+  // R34: providers marked down by the heartbeat are avoided without waiting for a timeout.
+  const enabledProviderIds = providers.filter((p: any) => healthRank(p.health_status) !== Infinity).map((p: any) => p.id);
+  if (enabledProviderIds.length === 0) throw new Error("ผู้ให้บริการ AI ทั้งหมดอยู่ในสถานะ down จากการตรวจสุขภาพล่าสุด");
   const { data: models, error: mErr } = await supabase
     .from("models").select("*").in("provider_id", enabledProviderIds).eq("is_enabled", true)
     .or(`in_cooldown.eq.false,cooldown_until.lt.${nowIso}`).order("priority", { ascending: true });
@@ -84,7 +87,7 @@ export async function pickBestModel(requiredCapability: "text" | "image" | "tool
     const ai = fallbackIds.indexOf(a.id), bi = fallbackIds.indexOf(b.id);
     if (ai >= 0 || bi >= 0) return (ai < 0 ? Number.MAX_SAFE_INTEGER : ai) - (bi < 0 ? Number.MAX_SAFE_INTEGER : bi);
     return a.priority - b.priority;
-  });
+  }).sort((a: any, b: any) => healthRank(providers.find((p: any) => p.id === a.provider_id)?.health_status) - healthRank(providers.find((p: any) => p.id === b.provider_id)?.health_status));
   const ranked = rankModelsByLatency(orderedModels as Array<{ id: string; priority: number; provider_id: string; model_id: string; display_name: string }>, id => latencies.mean(id));
   if (classifyPromptComplexity(prompt) === "simple") ranked.sort((a, b) => {
     const ap = providers.find((p: any) => p.id === a.provider_id), bp = providers.find((p: any) => p.id === b.provider_id);
@@ -204,30 +207,21 @@ async function responseError(res: Response): Promise<AIHttpError> {
   return new AIHttpError(res.status, `Model request failed (HTTP ${res.status})`, Number.isFinite(retryMs) ? retryMs : 0, permanent);
 }
 
-export async function testProviderConnection(provider: any, apiKey: string): Promise<{ success: boolean; latency: number; error?: string }> {
+/** Free list-models probe (no tokens consumed) used by manual tests and the R34 heartbeat. */
+export async function testProviderConnection(provider: any, apiKey: string, fetcher: typeof fetch = fetch): Promise<{ success: boolean; latency: number; status?: number; error?: string }> {
   const type = provider.type;
   const baseUrl = provider.base_url.replace(/\/$/, "");
   const startTime = Date.now();
   try {
+    const key = parseApiKeys(apiKey)[0] ?? "";
     let res: Response;
-    if (type === "anthropic") {
-      res = await fetch(`${baseUrl}/v1/messages`, {
-        method: "POST",
-        headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-        body: JSON.stringify({ model: "claude-3-haiku-20240307", max_tokens: 1, messages: [{ role: "user", content: "hi" }] }),
-        signal: AbortSignal.timeout(8000),
-      });
-      if (res.status === 401 || res.status === 403) throw new Error("API Key ไม่ถูกต้อง");
-    } else if (type === "gemini") {
-      res = await fetch(`${baseUrl}/v1beta/models?key=${apiKey}`, { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    } else {
-      res = await fetch(`${baseUrl}/models`, { headers: { Authorization: `Bearer ${apiKey}`, ...safeCustomHeaders(provider.custom_headers) }, signal: AbortSignal.timeout(8000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    }
-    return { success: true, latency: Date.now() - startTime };
+    if (type === "anthropic") res = await fetcher(`${baseUrl}/v1/models`, { headers: { "x-api-key": key, "anthropic-version": "2023-06-01", ...safeCustomHeaders(provider.custom_headers) }, signal: AbortSignal.timeout(8000) });
+    else if (type === "gemini") res = await fetcher(`${baseUrl}/v1beta/models?key=${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(8000) });
+    else res = await fetcher(`${baseUrl}/models`, { headers: { Authorization: `Bearer ${key}`, ...safeCustomHeaders(provider.custom_headers) }, signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return { success: false, latency: Date.now() - startTime, status: res.status, error: res.status === 401 || res.status === 403 ? "API Key ไม่ถูกต้อง" : `HTTP ${res.status}` };
+    return { success: true, latency: Date.now() - startTime, status: res.status };
   } catch (err: any) {
-    return { success: false, latency: Date.now() - startTime, error: err.message };
+    return { success: false, latency: Date.now() - startTime, error: err?.name === "TimeoutError" ? "Timeout" : "Network error" };
   }
 }
 
