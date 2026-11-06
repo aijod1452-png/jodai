@@ -90,7 +90,7 @@ export async function loadUsageLedger(client: any, sinceIso: string) {
 
 export type ShadowDeps = { client: any; call: (provider: any, model: any, apiKey: string, prompt: string, system?: string) => Promise<any>; decrypt: (enc: string | null, iv: string | null, plain: string | null) => Promise<string>; now?: () => number; random?: () => number };
 /** R33: runs after the primary answer; caller must not await it on the user path. Never throws. */
-export async function runShadowEvaluation(deps: ShadowDeps, input: { prompt: string; system?: string; primary: { model: any; result: any; latencyMs: number } }) {
+export async function runShadowEvaluation(deps: ShadowDeps, input: { prompt: string; system?: string | undefined; primary: { model: any; result: any; latencyMs: number } }) {
   const now = deps.now ?? Date.now;
   const base = { primary_model_id: String(input.primary.model.model_id), primary_latency_ms: Math.round(input.primary.latencyMs), primary_prompt_tokens: input.primary.result.promptTokens ?? 0, primary_completion_tokens: input.primary.result.completionTokens ?? 0, primary_cost: input.primary.result.cost ?? 0, primary_output: clip(input.primary.result.text) };
   try {

@@ -3,7 +3,7 @@ import { classifyHealth, isHealthCheckDue, healthRank, shouldShadow, selectShado
 import { callWithFallback } from "@/server/hub/jobs";
 
 function fakeClient(tables: Record<string, any>) {
-  const inserts: Record<string, any[]> = {}, updates: any[] = [];
+  const inserts: any = {}, updates: any[] = [];
   const q = (name: string) => {
     const chain: any = {
       select: () => chain, eq: () => chain, gte: () => chain, order: () => chain,

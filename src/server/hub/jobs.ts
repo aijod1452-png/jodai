@@ -8,10 +8,10 @@ import { getRequestUrl } from "@tanstack/react-start/server";
 export type FallbackDeps = {
   pick: typeof pickBestModel; call: typeof callAIModel; cooldown: typeof putModelInCooldown;
   wait: (ms: number) => Promise<void>;
-  afterSuccess?: (input: { prompt: string; system?: string; primary: { model: any; result: any; latencyMs: number } }) => void;
+  afterSuccess?: (input: { prompt: string; system?: string | undefined; primary: { model: any; result: any; latencyMs: number } }) => void;
 };
 /** R33: fire-and-forget shadow probe; never awaited on the user path and never throws. */
-export function startShadowEvaluation(input: { prompt: string; system?: string; primary: { model: any; result: any; latencyMs: number } }) {
+export function startShadowEvaluation(input: { prompt: string; system?: string | undefined; primary: { model: any; result: any; latencyMs: number } }) {
   void (async () => {
     const { runShadowEvaluation } = await import("./model-observability");
     await runShadowEvaluation({ client: await getServiceClient(), call: callAIModel, decrypt: decryptSecret }, input);
