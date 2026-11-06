@@ -320,6 +320,11 @@ export type Database = {
           base_url: string
           created_at: string
           custom_headers: Json
+          health_checked_at: string | null
+          health_error: string | null
+          health_failures: number
+          health_latency_ms: number | null
+          health_status: string
           id: string
           is_enabled: boolean
           last_test_latency_ms: number | null
@@ -333,6 +338,11 @@ export type Database = {
           base_url: string
           created_at?: string
           custom_headers?: Json
+          health_checked_at?: string | null
+          health_error?: string | null
+          health_failures?: number
+          health_latency_ms?: number | null
+          health_status?: string
           id?: string
           is_enabled?: boolean
           last_test_latency_ms?: number | null
@@ -346,6 +356,11 @@ export type Database = {
           base_url?: string
           created_at?: string
           custom_headers?: Json
+          health_checked_at?: string | null
+          health_error?: string | null
+          health_failures?: number
+          health_latency_ms?: number | null
+          health_status?: string
           id?: string
           is_enabled?: boolean
           last_test_latency_ms?: number | null
@@ -512,6 +527,7 @@ export type Database = {
           max_steps_per_task: number
           passcode_hash: string | null
           passcode_salt: string | null
+          shadow_sample_rate: number
           theme: string
           updated_at: string
         }
@@ -525,6 +541,7 @@ export type Database = {
           max_steps_per_task?: number
           passcode_hash?: string | null
           passcode_salt?: string | null
+          shadow_sample_rate?: number
           theme?: string
           updated_at?: string
         }
@@ -538,8 +555,69 @@ export type Database = {
           max_steps_per_task?: number
           passcode_hash?: string | null
           passcode_salt?: string | null
+          shadow_sample_rate?: number
           theme?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      shadow_evaluations: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          primary_completion_tokens: number
+          primary_cost: number
+          primary_latency_ms: number | null
+          primary_model_id: string
+          primary_output: string | null
+          primary_prompt_tokens: number
+          shadow_completion_tokens: number
+          shadow_cost: number
+          shadow_latency_ms: number | null
+          shadow_model_id: string | null
+          shadow_output: string | null
+          shadow_prompt_tokens: number
+          shadow_provider_id: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          primary_completion_tokens?: number
+          primary_cost?: number
+          primary_latency_ms?: number | null
+          primary_model_id: string
+          primary_output?: string | null
+          primary_prompt_tokens?: number
+          shadow_completion_tokens?: number
+          shadow_cost?: number
+          shadow_latency_ms?: number | null
+          shadow_model_id?: string | null
+          shadow_output?: string | null
+          shadow_prompt_tokens?: number
+          shadow_provider_id?: string | null
+          status: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          primary_completion_tokens?: number
+          primary_cost?: number
+          primary_latency_ms?: number | null
+          primary_model_id?: string
+          primary_output?: string | null
+          primary_prompt_tokens?: number
+          shadow_completion_tokens?: number
+          shadow_cost?: number
+          shadow_latency_ms?: number | null
+          shadow_model_id?: string | null
+          shadow_output?: string | null
+          shadow_prompt_tokens?: number
+          shadow_provider_id?: string | null
+          status?: string
         }
         Relationships: []
       }
@@ -849,6 +927,7 @@ export type Database = {
           model_id: string
           prompt_tokens: number
           provider_id: string | null
+          source: string
           task_id: string | null
         }
         Insert: {
@@ -860,6 +939,7 @@ export type Database = {
           model_id: string
           prompt_tokens?: number
           provider_id?: string | null
+          source?: string
           task_id?: string | null
         }
         Update: {
@@ -871,6 +951,7 @@ export type Database = {
           model_id?: string
           prompt_tokens?: number
           provider_id?: string | null
+          source?: string
           task_id?: string | null
         }
         Relationships: [
