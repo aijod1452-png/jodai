@@ -22,3 +22,4 @@
 - Chat-first direct engine logic lives in src/server/hub/chat.ts with injected deps (model call, tool run, usage, log) so services and tests share one flow without the task queue.
 - The generated worker reads fixed precache assets from public/ (globDirectory) because the client build pass does not copy public files; the closeBundle ordering hook skips passes where dist/client/sw.js does not exist.
 - Cache, snippets, memories and compaction live in src/server/hub/chat-pipeline.ts with an injected PipelineStore (DB impl in pipeline-store.ts) so chat-service and tests share one flow; the OpenAI gateway logic lives in openai-gateway.ts with injected deps.
+- Shadow evaluation, provider heartbeat classification and usage ledger live in src/server/hub/model-observability.ts with injected DB/call deps; the router reads provider health_status so selection and tests share one rule.

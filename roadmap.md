@@ -63,3 +63,8 @@
 - [x] Chat pipeline: memory capture, snippets, compaction, exact cache; wired into chat-service/send.
 - [x] /api/public/v1/chat/completions (Bearer api_tokens, JSON + SSE); 19 tests.
 - [ ] Live chat/gateway check with real models — needs PIN session, provider keys and an API token.
+
+# R33–R35 (approved 2026-11-06)
+- [x] Shadow evaluation (off by default, cheapest enabled model), provider heartbeat (free list-models, every 5 min), per-model/provider ledger; 11 tests.
+- [ ] Set a shadow sample rate — waits on the user's choice.
+- [ ] Live check with real providers — needs the user's PIN session and provider keys.

@@ -8,18 +8,29 @@ import { getRequestUrl } from "@tanstack/react-start/server";
 export type FallbackDeps = {
   pick: typeof pickBestModel; call: typeof callAIModel; cooldown: typeof putModelInCooldown;
   wait: (ms: number) => Promise<void>;
+  afterSuccess?: (input: { prompt: string; system?: string | undefined; primary: { model: any; result: any; latencyMs: number } }) => void;
 };
+/** R33: fire-and-forget shadow probe; never awaited on the user path and never throws. */
+export function startShadowEvaluation(input: { prompt: string; system?: string | undefined; primary: { model: any; result: any; latencyMs: number } }) {
+  void (async () => {
+    const { runShadowEvaluation } = await import("./model-observability");
+    await runShadowEvaluation({ client: await getServiceClient(), call: callAIModel, decrypt: decryptSecret }, input);
+  })().catch(() => undefined);
+}
 /** R25/R28 expand ordinary provider fallback; managed gateway denials remain terminal. */
 export async function callWithFallback(prompt: string, systemPrompt?: string, deps: FallbackDeps = {
   pick: pickBestModel, call: callAIModel, cooldown: putModelInCooldown,
   wait: ms => new Promise(resolve => setTimeout(resolve, ms)),
+  afterSuccess: startShadowEvaluation,
 }) {
   const tried: string[] = [];
   for (;;) {
     const router = await deps.pick("text", tried, prompt);
     if (tried.includes(router.model.id)) throw new Error("No untried model remains");
     try {
+      const started = Date.now();
       const result = await deps.call(router.provider, router.model, router.apiKey, prompt, systemPrompt);
+      deps.afterSuccess?.({ prompt, system: systemPrompt, primary: { model: router.model, result, latencyMs: Date.now() - started } });
       return { router, result, tried };
     } catch (err: any) {
       if (err instanceof RoutingGuardError) {

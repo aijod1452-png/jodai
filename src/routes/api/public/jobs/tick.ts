@@ -12,7 +12,10 @@ export const Route = createFileRoute("/api/public/jobs/tick")({
         try {
           const scheduler = await runSchedulerTick();
           const worker = await runWorkerDrain({ maxIterations: 10, timeBudgetMs: 40000 });
-          return Response.json({ scheduler, worker });
+          // R34: each provider is probed at most once per 5 minutes via a free list-models call.
+          const { runHeartbeatNow } = await import("@/server/hub/services");
+          const health = await runHeartbeatNow(false).catch(() => ({ error: "health check failed" }));
+          return Response.json({ scheduler, worker, health });
         } catch (err: any) {
           console.error(err);
           return Response.json({ error: err?.message || String(err) }, { status: 500 });

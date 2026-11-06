@@ -93,7 +93,7 @@ export async function testStorageConnection(projectUrl: unknown, key: string, fe
 }
 export const SNAPSHOT_BUCKET = "hub-snapshots";
 /** Hub tables that may be snapshotted; secret, session and token tables are never exported. */
-export const SNAPSHOT_TABLES = ["settings", "providers", "models", "router_state", "tools", "storage_connections", "tasks", "task_steps", "schedules", "schedule_runs", "usage_records", "activity_log", "notifications", "health_checks"] as const;
+export const SNAPSHOT_TABLES = ["settings", "providers", "models", "router_state", "tools", "storage_connections", "tasks", "task_steps", "schedules", "schedule_runs", "usage_records", "shadow_evaluations", "activity_log", "notifications", "health_checks"] as const;
 
 export async function ensureBucket(client: any, bucket = SNAPSHOT_BUCKET): Promise<void> {
   const { data, error } = await client.storage.getBucket(bucket);

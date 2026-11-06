@@ -2,6 +2,18 @@
 import { json, getServiceClient, validateSession, hashPasscode, hashString, encryptSecret, decryptSecret, logActivity, nextCronRun } from "./core";
 import { testProviderConnection } from "./router-core";
 import { runWorkerTick, runWorkerDrain } from "./jobs";
+import { runProviderHeartbeat, loadUsageLedger } from "./model-observability";
+
+/** R34: probe enabled providers (free list-models call); force skips the 5-minute spacing. */
+export async function runHeartbeatNow(force: boolean) {
+  const client = await getServiceClient();
+  return runProviderHeartbeat({ client, force, probe: async (p: any) => {
+    const { data: sec } = await client.from("provider_secrets").select("api_key,encrypted_secret,encryption_iv").eq("provider_id", p.id).maybeSingle();
+    if (!sec) return { success: false, latency: 0, status: 401, error: "No API key configured" };
+    const key = await decryptSecret(sec.encrypted_secret || null, sec.encryption_iv || null, sec.api_key || null);
+    return testProviderConnection(p, key);
+  } });
+}
 import { type ExternalSnapshotTarget } from "./storage-connection";
 import { saveStorage, probeStorage, loadStorage, storageTarget, runStorageOperation, storageChatTools, STORAGE_PUBLIC_COLUMNS } from "./storage-service";
 import { normalizeToolUrl, normalizeHeaderName, normalizeAuthType, parseSampleRequest, testToolConnection, validateToolPayload, executeToolCall, type ToolTestResult, type ToolCallResult } from "./tool-connection";
@@ -317,6 +329,27 @@ const aiService: Handler = async ({ req, action, body, supabase }) => {
     const { error } = await supabase.from("router_state").update({ fallback_order: fallbackOrder, cooldown_duration_seconds: cooldownDurationSeconds, updated_at: new Date().toISOString() }).eq("id", "GLOBAL_ROUTER");
     if (error) throw error;
     return json({ success: true });
+  }
+  if (action === "provider-health" && req.method === "POST") {
+    return json({ results: await runHeartbeatNow(true) });
+  }
+  if (action === "usage-ledger") {
+    const days = Number(body.days ?? new URL(req.url).searchParams.get("days") ?? 30);
+    if (!Number.isInteger(days) || days < 1 || days > 365) return json({ error: "days must be 1-365" }, 400);
+    return json({ days, ...(await loadUsageLedger(supabase, new Date(Date.now() - days * 86_400_000).toISOString())) });
+  }
+  if (action === "shadow-settings" && req.method === "GET") {
+    const { data } = await supabase.from("settings").select("shadow_sample_rate").eq("id", "SYSTEM_CONFIG").single();
+    const { data: recent } = await supabase.from("shadow_evaluations").select("*").order("created_at", { ascending: false }).limit(20);
+    return json({ sampleRate: Number(data?.shadow_sample_rate ?? 0), recent: recent ?? [] });
+  }
+  if (action === "shadow-settings" && req.method === "POST") {
+    const rate = Number(body.sampleRate);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 1) return json({ error: "sampleRate must be between 0 and 1" }, 400);
+    const { error } = await supabase.from("settings").update({ shadow_sample_rate: rate, updated_at: new Date().toISOString() }).eq("id", "SYSTEM_CONFIG");
+    if (error) throw error;
+    await logActivity(supabase, { eventType: "SHADOW_RATE_SET", description: `Shadow sample rate = ${rate}` });
+    return json({ success: true, sampleRate: rate });
   }
   if (action === "test-connection") {
     const { data: provider } = await supabase.from("providers").select("*, provider_secrets(api_key,encrypted_secret,encryption_iv)").eq("id", body.providerId).single();
